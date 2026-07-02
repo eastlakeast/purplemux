@@ -43,6 +43,16 @@ const handleClaudePreToolUse = (req: NextApiRequest, res: NextApiResponse) => {
   return res.status(204).end();
 };
 
+const handleClaudePostToolUse = (req: NextApiRequest, res: NextApiResponse) => {
+  const session = typeof req.query.session === 'string' ? req.query.session : '';
+  const body = (req.body ?? {}) as { tool_name?: unknown };
+  if (session && body.tool_name === 'AskUserQuestion') {
+    log.debug({ session }, 'post-tool-use AskUserQuestion, clearing pending questions');
+    getStatusManager().applyAgentHookMeta('claude', session, { askUserQuestionItems: null });
+  }
+  return res.status(204).end();
+};
+
 const handleCodexHook = (req: NextApiRequest, res: NextApiResponse) => {
   const tmuxSession = req.query.tmuxSession;
   if (typeof tmuxSession !== 'string' || !tmuxSession) {
@@ -91,6 +101,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   const provider = typeof req.query.provider === 'string' ? req.query.provider : 'claude';
   if (provider === 'codex') return handleCodexHook(req, res);
   if (req.query.event === 'pre-tool-use') return handleClaudePreToolUse(req, res);
+  if (req.query.event === 'post-tool-use') return handleClaudePostToolUse(req, res);
   return handleClaudeHook(req, res);
 };
 
