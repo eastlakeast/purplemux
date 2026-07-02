@@ -26,6 +26,8 @@
   "permissionRequired": "Input required",
   "permissionLoading": "Loading options...",
   "permissionParseFailed": "Could not load options. Please respond directly in the terminal tab.",
+  "askSubmit": "Submit",
+  "askMultiSelectHint": "Space to select, Enter to submit",
   "taskProgress": "Task progress",
   "toolUsageCount": "{count} tool uses",
   "diffShow": "Show diff",

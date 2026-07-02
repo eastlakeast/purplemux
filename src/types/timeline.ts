@@ -115,6 +115,7 @@ export interface ITimelineToolResult {
   toolUseId: string;
   isError: boolean;
   summary: string;
+  answers?: Record<string, string>;
 }
 
 export interface ITimelineAgentGroup {
@@ -190,6 +191,7 @@ export interface ITimelineAskUserQuestion {
   questions: IAskUserQuestionItem[];
   status: TToolStatus;
   answer?: string;
+  answers?: Record<string, string>;
 }
 
 export interface ITimelineInterrupt {
