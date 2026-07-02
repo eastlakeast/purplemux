@@ -38,7 +38,7 @@ interface IMobileCodexPanelProps {
   terminalWsConnected: boolean;
   focusTerminal: () => void;
   focusInputRef: React.MutableRefObject<(() => void) | undefined>;
-  setInputValueRef: React.MutableRefObject<((v: string) => void) | undefined>;
+  setInputValueRef: React.MutableRefObject<((v: React.SetStateAction<string>) => void) | undefined>;
   onNewSession?: () => void;
   onRestart?: () => void;
   updatePrompt?: ICodexUpdatePromptInfo | null;

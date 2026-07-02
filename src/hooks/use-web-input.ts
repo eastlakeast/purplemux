@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect, type SetStateAction } from 'react';
 import { toast } from 'sonner';
 import { t } from '@/lib/i18n';
 import type { TCliState } from '@/types/timeline';
@@ -41,7 +41,7 @@ const clearDraft = (tabId: string) => {
 
 interface IUseWebInputReturn {
   value: string;
-  setValue: (v: string) => void;
+  setValue: (v: SetStateAction<string>) => void;
   mode: TWebInputMode;
   canSend: boolean;
   send: () => void;

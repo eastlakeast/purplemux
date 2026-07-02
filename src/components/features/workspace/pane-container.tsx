@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, memo, type SetStateAction } from 'react';
 import { useTranslations } from 'next-intl';
 import { Group, Panel, Separator, type GroupImperativeHandle } from 'react-resizable-panels';
 import { ChevronDown, ChevronUp, Plus, TerminalSquare } from 'lucide-react';
@@ -247,7 +247,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
 
   const clearRef = useRef<() => void>(() => {});
   const focusInputRef = useRef<(() => void) | undefined>(undefined);
-  const setInputValueRef = useRef<((v: string) => void) | undefined>(undefined);
+  const setInputValueRef = useRef<((v: SetStateAction<string>) => void) | undefined>(undefined);
   const pendingAgentInputRef = useRef<{ text: string; provider: TGitAskProvider } | null>(null);
   const codexRelaunchRef = useRef<() => void | Promise<void>>(() => {});
   const clickedTerminalRef = useRef(false);
@@ -393,7 +393,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
   }, []);
 
   const handleSelectQuickPrompt = useCallback((prompt: string) => {
-    setInputValueRef.current?.(prompt);
+    setInputValueRef.current?.((prev) => `${prev}${prompt}`);
     focusInputRef.current?.();
   }, []);
 
