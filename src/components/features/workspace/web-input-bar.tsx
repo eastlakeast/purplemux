@@ -45,7 +45,7 @@ interface IWebInputBarProps {
   visible: boolean;
   focusTerminal: () => void;
   focusInputRef: React.MutableRefObject<(() => void) | undefined>;
-  setInputValueRef: React.MutableRefObject<((v: string) => void) | undefined>;
+  setInputValueRef: React.MutableRefObject<((v: React.SetStateAction<string>) => void) | undefined>;
   maxRows?: number;
   onRestartSession?: () => void;
   onSend?: () => void;

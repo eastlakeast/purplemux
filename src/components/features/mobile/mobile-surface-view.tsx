@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, type SetStateAction } from 'react';
 import { Plus, WifiOff } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Spinner from '@/components/ui/spinner';
@@ -165,7 +165,7 @@ const MobileSurfaceView = ({
 
   const clearRef = useRef<() => void>(() => {});
   const focusInputRef = useRef<(() => void) | undefined>(undefined);
-  const setInputValueRef = useRef<((v: string) => void) | undefined>(undefined);
+  const setInputValueRef = useRef<((v: SetStateAction<string>) => void) | undefined>(undefined);
 
   const pendingRestartRef = useRef<string | null>(null);
   const pendingAgentInputRef = useRef<{ text: string; provider: TGitAskProvider } | null>(null);

@@ -37,7 +37,7 @@ interface IMobileClaudeCodePanelProps {
   terminalWsConnected: boolean;
   focusTerminal: () => void;
   focusInputRef: React.MutableRefObject<(() => void) | undefined>;
-  setInputValueRef: React.MutableRefObject<((v: string) => void) | undefined>;
+  setInputValueRef: React.MutableRefObject<((v: React.SetStateAction<string>) => void) | undefined>;
   onCliStateChange: (state: TCliState) => void;
   onInputVisibleChange: (visible: boolean) => void;
   onRestartSession?: () => void;
