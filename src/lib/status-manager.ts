@@ -469,6 +469,7 @@ class StatusManager {
         agentSessionId: entry.agentSessionId,
         compactingSince: entry.compactingSince,
         permissionRequest: entry.permissionRequest,
+        pendingQuestions: entry.pendingQuestions,
         lastEvent: entry.lastEvent,
         eventSeq: entry.eventSeq,
       };
@@ -484,8 +485,9 @@ class StatusManager {
     entry.readyForReviewAt = newState === 'ready-for-review' ? Date.now() : null;
     entry.busySince = newState === 'busy' ? Date.now() : null;
     if (newState === 'busy') entry.dismissedAt = null;
-    if (prevState === 'needs-input' && newState !== 'needs-input' && entry.permissionRequest) {
-      entry.permissionRequest = null;
+    if (prevState === 'needs-input' && newState !== 'needs-input') {
+      if (entry.permissionRequest) entry.permissionRequest = null;
+      if (entry.pendingQuestions) entry.pendingQuestions = null;
     }
 
     if (newState === 'ready-for-review' && entry.jsonlPath) {
@@ -791,6 +793,10 @@ class StatusManager {
       entry.permissionRequest = meta.permissionRequest;
       changed = true;
     }
+    if (meta.askUserQuestionItems !== undefined) {
+      entry.pendingQuestions = meta.askUserQuestionItems;
+      changed = true;
+    }
 
     if (changed) {
       const provider = expectedProvider ?? getProvider(providerId);
@@ -918,6 +924,7 @@ class StatusManager {
       entry.lastAssistantMessage = null;
       entry.currentAction = null;
       entry.permissionRequest = null;
+      entry.pendingQuestions = null;
       const existingWatcher = this.jsonlWatchers.get(tabId);
       if (existingWatcher) {
         existingWatcher.watcher.close();
@@ -983,6 +990,7 @@ class StatusManager {
       agentSessionId: entry.agentSessionId,
       compactingSince: entry.compactingSince,
       permissionRequest: entry.permissionRequest,
+      pendingQuestions: entry.pendingQuestions,
       lastEvent: entry.lastEvent,
       eventSeq: entry.eventSeq,
     };

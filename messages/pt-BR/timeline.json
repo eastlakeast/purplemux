@@ -26,6 +26,8 @@
   "permissionRequired": "Resposta necessaria",
   "permissionLoading": "Carregando opcoes...",
   "permissionParseFailed": "Nao foi possivel carregar as opcoes. Responda diretamente na aba do terminal.",
+  "askSubmit": "Enviar",
+  "askMultiSelectHint": "Espaço para selecionar, Enter para enviar",
   "taskProgress": "Progresso da tarefa",
   "toolUsageCount": "{count} usos de ferramentas",
   "diffShow": "Mostrar diff",

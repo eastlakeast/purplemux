@@ -26,6 +26,15 @@ PORT=$(cat "$PORT_FILE")
 TOKEN=$(cat "$TOKEN_FILE")
 SESSION=$(tmux display-message -p '#{session_name}' 2>/dev/null) || SESSION=""
 
+if [ "$EVENT" = "pre-tool-use" ]; then
+  curl -sS -X POST -o /dev/null \\
+    -H "x-pmux-token: \${TOKEN}" \\
+    -H "Content-Type: application/json" \\
+    --data-binary @- \\
+    "http://localhost:\${PORT}/api/status/hook?event=pre-tool-use&session=\${SESSION}" 2>/dev/null || true
+  exit 0
+fi
+
 NOTIFICATION_TYPE=""
 if [ "$EVENT" = "notification" ]; then
   NOTIFICATION_TYPE=$(sed -n 's/.*"notification_type"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p')
@@ -59,9 +68,9 @@ curl -sS -X POST -o /dev/null \\
 exit 0
 `;
 
-const hookEntry = (event: string, timeout = 3) => [
+const hookEntry = (event: string, matcher = '', timeout = 3) => [
   {
-    matcher: '',
+    matcher,
     hooks: [
       {
         type: 'command',
@@ -81,6 +90,7 @@ const buildHookSettings = () => ({
     StopFailure: hookEntry('stop'),
     PreCompact: hookEntry('pre-compact'),
     PostCompact: hookEntry('post-compact'),
+    PreToolUse: hookEntry('pre-tool-use', 'AskUserQuestion'),
   },
   statusLine: {
     type: 'command' as const,

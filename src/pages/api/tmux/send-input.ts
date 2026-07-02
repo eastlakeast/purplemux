@@ -10,10 +10,12 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { session, input } = req.body as { session?: string; input?: string };
+  const { session, input, keys } = req.body as { session?: string; input?: string; keys?: string[] };
 
-  if (!session || !input) {
-    return res.status(400).json({ error: 'session and input parameters required' });
+  const sequence = Array.isArray(keys) ? keys : input != null ? [input] : [];
+
+  if (!session || sequence.length === 0) {
+    return res.status(400).json({ error: 'session and input/keys parameters required' });
   }
 
   const exists = await hasSession(session);
@@ -22,7 +24,9 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   try {
-    await sendRawKeys(session, input);
+    for (const key of sequence) {
+      await sendRawKeys(session, key);
+    }
     return res.status(200).json({ ok: true });
   } catch (err) {
     log.error(`send-input failed: ${err instanceof Error ? err.message : err}`);
