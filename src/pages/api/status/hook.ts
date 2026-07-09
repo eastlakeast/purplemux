@@ -47,8 +47,12 @@ const handleClaudePostToolUse = (req: NextApiRequest, res: NextApiResponse) => {
   const session = typeof req.query.session === 'string' ? req.query.session : '';
   const body = (req.body ?? {}) as { tool_name?: unknown };
   if (session && body.tool_name === 'AskUserQuestion') {
-    log.debug({ session }, 'post-tool-use AskUserQuestion, clearing pending questions');
-    getStatusManager().applyAgentHookMeta('claude', session, { askUserQuestionItems: null });
+    log.debug({ session }, 'post-tool-use AskUserQuestion, clearing pending questions and resuming');
+    const manager = getStatusManager();
+    manager.applyAgentHookMeta('claude', session, { askUserQuestionItems: null });
+    // 답변 제출 후 Claude가 처리 중이므로 busy로 전환해 needs-input을 해제한다.
+    // (needs-input이 남으면 permission 카드가 폴백으로 떠서 "옵션 로드/실패" 메시지가 노출됨)
+    manager.handleProviderEvent('claude', session, { kind: 'prompt-submit' });
   }
   return res.status(204).end();
 };
