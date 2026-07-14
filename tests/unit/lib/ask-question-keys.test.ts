@@ -10,14 +10,15 @@ const q = (header: string, optionCount: number, multiSelect = false): IAskUserQu
   options: Array.from({ length: optionCount }, (_, i) => ({ label: `opt${i}`, description: '' })),
 });
 
-// 시퀀스 끝의 추가 Enter는 "Submit answers" 확인 화면 확정용이다.
+// 질문 1개 + 단일 선택은 "Submit answers" 확인 화면이 없어 옵션 Enter가 곧 제출이다.
+// 그 외(멀티 질문 또는 멀티 선택)만 확인 화면 확정용 Enter가 붙는다.
 describe('buildKeySequence', () => {
-  it('single-select: 옵션 인덱스만큼 Down, Enter, 그리고 최종 제출 Enter', () => {
-    expect(buildKeySequence([q('A', 3)], { 0: [1] })).toEqual(['Down', 'Enter', 'Enter']);
+  it('단일 질문·단일 선택은 옵션 Enter로 끝(추가 제출 Enter 없음)', () => {
+    expect(buildKeySequence([q('A', 3)], { 0: [1] })).toEqual(['Down', 'Enter']);
   });
 
-  it('single-select 첫 옵션은 Down 없이 Enter + 제출 Enter', () => {
-    expect(buildKeySequence([q('A', 3)], { 0: [0] })).toEqual(['Enter', 'Enter']);
+  it('단일 질문·단일 선택 첫 옵션은 Down 없이 Enter만', () => {
+    expect(buildKeySequence([q('A', 3)], { 0: [0] })).toEqual(['Enter']);
   });
 
   it('다중 질문은 각 질문을 Enter로 넘기고 끝에 제출 Enter', () => {
@@ -25,7 +26,7 @@ describe('buildKeySequence', () => {
     expect(keys).toEqual(['Enter', 'Down', 'Down', 'Enter', 'Down', 'Enter', 'Enter']);
   });
 
-  it('multi-select: 선택마다 이동 후 Space, 질문 Enter, 제출 Enter', () => {
+  it('단일 질문이라도 멀티 선택이면 제출 Enter가 붙는다', () => {
     const keys = buildKeySequence([q('M', 4, true)], { 0: [0, 2] });
     expect(keys).toEqual(['Space', 'Down', 'Down', 'Space', 'Enter', 'Enter']);
   });
@@ -35,7 +36,7 @@ describe('buildKeySequence', () => {
     expect(keys).toEqual(['Down', 'Space', 'Down', 'Down', 'Space', 'Enter', 'Enter']);
   });
 
-  it('미선택 질문은 첫 옵션(Enter) + 제출 Enter', () => {
-    expect(buildKeySequence([q('A', 3)], {})).toEqual(['Enter', 'Enter']);
+  it('단일 질문·단일 선택 미선택은 첫 옵션(Enter)만', () => {
+    expect(buildKeySequence([q('A', 3)], {})).toEqual(['Enter']);
   });
 });
