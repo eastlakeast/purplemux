@@ -288,6 +288,26 @@ interface IRawEntry {
   lineOffset: number;
 }
 
+/** 문자열 형태의 user 프롬프트를 타임라인 엔트리로 변환한다(task-notification·슬래시 명령·일반 텍스트). */
+const parseUserTextContent = (content: string, timestamp: number): ITimelineEntry[] => {
+  const taskNotif = parseTaskNotification(content, timestamp);
+  if (taskNotif) return [taskNotif];
+
+  const commandName = extractCommandName(content);
+  if (commandName) {
+    if (commandName === '/exit') {
+      return [{ id: nanoid(), type: 'session-exit', timestamp } satisfies ITimelineSessionExit];
+    }
+    return [{ id: nanoid(), type: 'user-message', timestamp, text: commandName } satisfies ITimelineUserMessage];
+  }
+
+  const cleaned = stripProtocolTags(content);
+  if (cleaned) {
+    return [{ id: nanoid(), type: 'user-message', timestamp, text: cleaned } satisfies ITimelineUserMessage];
+  }
+  return [];
+};
+
 const parseSingleEntry = (raw: unknown, base: z.infer<typeof BaseEntrySchema>): ITimelineEntry[] => {
   const timestamp = base.timestamp ? new Date(base.timestamp).getTime() : Date.now();
 
@@ -418,36 +438,7 @@ const parseSingleEntry = (raw: unknown, base: z.infer<typeof BaseEntrySchema>): 
     const content = parsed.data.message.content;
 
     if (typeof content === 'string') {
-      const taskNotif = parseTaskNotification(content, timestamp);
-      if (taskNotif) return [taskNotif];
-
-      const commandName = extractCommandName(content);
-      if (commandName) {
-        if (commandName === '/exit') {
-          return [{
-            id: nanoid(),
-            type: 'session-exit',
-            timestamp,
-          } satisfies ITimelineSessionExit];
-        }
-        entries.push({
-          id: nanoid(),
-          type: 'user-message',
-          timestamp,
-          text: commandName,
-        } satisfies ITimelineUserMessage);
-        return entries;
-      }
-      const cleaned = stripProtocolTags(content);
-      if (cleaned) {
-        entries.push({
-          id: nanoid(),
-          type: 'user-message',
-          timestamp,
-          text: cleaned,
-        } satisfies ITimelineUserMessage);
-      }
-      return entries;
+      return parseUserTextContent(content, timestamp);
     }
 
     if (
@@ -746,6 +737,14 @@ const parseContent = (content: string): IParseResult => {
         } satisfies ITimelinePlan);
         entryLineOffsets.push(lineOffset);
         if (typeof att.planFilePath === 'string') planFilePath = att.planFilePath;
+      }
+      // busy 중 큐잉된 프롬프트는 type:user 메시지가 아니라 queued_command 첨부로 기록되므로 여기서 복원한다
+      if (att?.type === 'queued_command' && typeof att.prompt === 'string' && att.prompt.trim()) {
+        const timestamp = base.timestamp ? new Date(base.timestamp).getTime() : Date.now();
+        for (const entry of parseUserTextContent(att.prompt, timestamp)) {
+          entries.push(entry);
+          entryLineOffsets.push(lineOffset);
+        }
       }
     }
 
