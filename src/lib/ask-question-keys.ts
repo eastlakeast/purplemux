@@ -5,8 +5,12 @@ export type TAskSelections = Record<number, number[]>;
 /**
  * AskUserQuestion 폼 선택을 터미널 키 시퀀스로 변환한다.
  * 가정: 진입 시 첫 질문·첫 옵션에 포커스가 있고, single은 Enter가 선택+다음 질문 이동,
- * multi는 Space 토글 후 Enter가 다음 질문으로 이동한다. 마지막 질문의 Enter는
- * "Review your answers" 확인 화면으로 넘어가고, 한 번 더 Enter를 눌러야 실제 제출된다.
+ * multi는 Space 토글 후 Enter가 다음 질문으로 이동한다.
+ *
+ * 질문이 여러 개거나 멀티 선택이면 마지막에 "Submit answers" 확인 화면이 있어
+ * Enter를 한 번 더 눌러야 제출된다. 반면 질문 1개 + 단일 선택은 확인 화면이 없어
+ * (Claude Code가 `hideSubmitTab = questions.length===1 && !multiSelect`로 처리)
+ * 옵션 Enter가 곧 제출이므로 추가 Enter를 붙이면 빈 입력이 새어 나간다.
  */
 export const buildKeySequence = (
   questions: IAskUserQuestionItem[],
@@ -29,7 +33,7 @@ export const buildKeySequence = (
       keys.push('Enter');
     }
   });
-  // 마지막 질문 후 나오는 "Submit answers" 확인 화면을 확정한다.
-  keys.push('Enter');
+  const hasSubmitConfirm = !(questions.length === 1 && !questions[0]?.multiSelect);
+  if (hasSubmitConfirm) keys.push('Enter');
   return keys;
 };
