@@ -41,6 +41,7 @@ import ContextCompactedItem from '@/components/features/timeline/context-compact
 import ErrorNoticeItem from '@/components/features/timeline/error-notice-item';
 import TimelineSearchBar from '@/components/features/timeline/timeline-search-bar';
 import { getEntryText } from '@/lib/timeline-entry-text';
+import { firstMatchRange } from '@/lib/timeline-search-dom';
 import { useTimelineSearchHighlight } from '@/hooks/use-timeline-search-highlight';
 import { reloadForReconnectRecovery, shouldPromptMobileReloadRecovery } from '@/lib/ws-reload-recovery';
 
@@ -672,9 +673,21 @@ const TimelineView = ({
 
   useEffect(() => {
     if (!searchOpen || !currentMatchId) return;
-    const el = scrollRef.current?.querySelector(`[data-timeline-item="${CSS.escape(currentMatchId)}"]`);
-    el?.scrollIntoView({ block: 'center', behavior: 'instant' });
-  }, [currentMatchId, searchOpen, scrollRef]);
+    const root = scrollRef.current;
+    const card = root?.querySelector(`[data-timeline-item="${CSS.escape(currentMatchId)}"]`);
+    if (!root || !(card instanceof HTMLElement)) return;
+    // 카드가 아니라 카드 안 첫 매치 키워드를 뷰 중앙으로 올려 눈이 바로 단어에 닿게 한다
+    const needle = searchQuery.trim().toLowerCase();
+    const range = needle ? firstMatchRange(card, needle) : null;
+    const rect = range?.getBoundingClientRect();
+    if (rect && rect.height > 0) {
+      const rootRect = root.getBoundingClientRect();
+      const target = rect.top - rootRect.top + root.scrollTop - root.clientHeight / 2;
+      root.scrollTop = Math.max(0, target);
+    } else {
+      card.scrollIntoView({ block: 'center', behavior: 'instant' });
+    }
+  }, [currentMatchId, searchOpen, searchQuery, scrollRef]);
 
   useTimelineSearchHighlight({
     scrollRef,

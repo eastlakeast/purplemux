@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from 'react';
+import { collectMatchRanges } from '@/lib/timeline-search-dom';
 
 const ALL_HIGHLIGHT = 'timeline-search';
 const CURRENT_HIGHLIGHT = 'timeline-search-current';
@@ -43,25 +44,8 @@ export const useTimelineSearchHighlight = ({
       ? root.querySelector(`[data-timeline-item="${CSS.escape(currentMatchId)}"]`)
       : null;
 
-    const all: Range[] = [];
-    const current: Range[] = [];
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = node.nodeValue;
-      if (!text) continue;
-      const hay = text.toLowerCase();
-      let from = hay.indexOf(needle);
-      if (from === -1) continue;
-      const inCurrentCard = currentCard?.contains(node) ?? false;
-      while (from !== -1) {
-        const range = document.createRange();
-        range.setStart(node, from);
-        range.setEnd(node, from + needle.length);
-        all.push(range);
-        if (inCurrentCard) current.push(range);
-        from = hay.indexOf(needle, from + needle.length);
-      }
-    }
+    const all = collectMatchRanges(root, needle);
+    const current = currentCard ? collectMatchRanges(currentCard, needle) : [];
 
     if (all.length > 0) CSS.highlights.set(ALL_HIGHLIGHT, new Highlight(...all));
     if (current.length > 0) {
