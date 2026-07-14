@@ -42,6 +42,7 @@ import ErrorNoticeItem from '@/components/features/timeline/error-notice-item';
 import TimelineSearchBar from '@/components/features/timeline/timeline-search-bar';
 import useTabStore from '@/hooks/use-tab-store';
 import { getEntryText } from '@/lib/timeline-entry-text';
+import { useTimelineSearchHighlight } from '@/hooks/use-timeline-search-highlight';
 import { reloadForReconnectRecovery, shouldPromptMobileReloadRecovery } from '@/lib/ws-reload-recovery';
 
 interface ITimelineViewProps {
@@ -682,6 +683,14 @@ const TimelineView = ({
     const el = scrollRef.current?.querySelector(`[data-timeline-item="${CSS.escape(currentMatchId)}"]`);
     el?.scrollIntoView({ block: 'center', behavior: 'instant' });
   }, [currentMatchId, searchOpen, scrollRef]);
+
+  useTimelineSearchHighlight({
+    scrollRef,
+    query: searchQuery,
+    enabled: searchOpen && active,
+    currentMatchId,
+    revision: groupedItems,
+  });
 
   const lastUserMessageId = useMemo(
     () => groupedItems.findLast((item) => item.type === 'entry' && item.entry.type === 'user-message')?.id ?? null,
