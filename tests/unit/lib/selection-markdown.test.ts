@@ -32,6 +32,25 @@ describe('htmlToMarkdown', () => {
     expect(md.split('\n').filter((l) => l.trim().startsWith('-'))).toHaveLength(2);
   });
 
+  it('does not escape the period in a numbered heading', () => {
+    const md = htmlToMarkdown('<h2>1. Section</h2>');
+    expect(md).toBe('## 1. Section');
+    expect(md).not.toContain('\\.');
+  });
+
+  it('does not escape a period after a number in prose', () => {
+    const md = htmlToMarkdown('<p>2024. was a great year</p>');
+    expect(md).toBe('2024. was a great year');
+    expect(md).not.toContain('\\.');
+  });
+
+  it('still numbers real ordered lists correctly', () => {
+    const md = htmlToMarkdown('<ol><li>first</li><li>second</li></ol>');
+    const items = md.split('\n').map((l) => l.trim()).filter(Boolean);
+    expect(items[0].startsWith('1.')).toBe(true);
+    expect(items[1].startsWith('2.')).toBe(true);
+  });
+
   it('returns empty string for empty input', () => {
     expect(htmlToMarkdown('')).toBe('');
     expect(htmlToMarkdown('   ')).toBe('');

@@ -13,6 +13,10 @@ const getService = (): TurndownService => {
     hr: '---',
   });
   s.use(gfm);
+  // turndown은 "숫자. " 를 순서 리스트 마커로 오인해 헤딩·본문 텍스트에서도 이스케이프한다(1\.).
+  // 실제 순서 리스트는 별도 규칙이 번호를 붙이므로, 텍스트에 잘못 붙은 이스케이프만 되돌린다.
+  const defaultEscape = s.escape.bind(s);
+  s.escape = (str: string) => defaultEscape(str).replace(/^(\d+)\\\. /, '$1. ');
   service = s;
   return s;
 };
