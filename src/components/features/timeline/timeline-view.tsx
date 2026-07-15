@@ -26,6 +26,7 @@ import AssistantMessageItem from '@/components/features/timeline/assistant-messa
 import AgentGroupItem from '@/components/features/timeline/agent-group-item';
 import TaskNotificationItem from '@/components/features/timeline/task-notification-item';
 import ToolGroupItem from '@/components/features/timeline/tool-group-item';
+import TimelineSelectionCopy from '@/components/features/timeline/timeline-selection-copy';
 import PlanItem from '@/components/features/timeline/plan-item';
 import AskUserQuestionItem from '@/components/features/timeline/ask-user-question-item';
 import TaskChecklist from '@/components/features/timeline/task-checklist';
@@ -977,6 +978,7 @@ const TimelineView = ({
           inputRef={searchInputRef}
         />
       )}
+      <TimelineSelectionCopy scrollRef={scrollRef} />
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto py-2 transition-opacity"
