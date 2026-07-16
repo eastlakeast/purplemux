@@ -10,6 +10,7 @@ describe('parseAskUserQuestionInput', () => {
           header: '민감도',
           question: '민감 정보가 있나요?',
           multiSelect: false,
+          allowCustomAnswer: true,
           options: [
             { label: '로컬 필수', description: '기기 밖으로 안 나감' },
             { label: '클라우드 무방', description: '외부 전송 허용' },
@@ -27,6 +28,7 @@ describe('parseAskUserQuestionInput', () => {
     expect(r).toHaveLength(2);
     expect(r[0].header).toBe('민감도');
     expect(r[0].multiSelect).toBe(false);
+    expect(r[0].allowCustomAnswer).toBe(true);
     expect(r[0].options[0]).toEqual({ label: '로컬 필수', description: '기기 밖으로 안 나감' });
     expect(r[1].multiSelect).toBe(true);
   });

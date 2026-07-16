@@ -181,6 +181,7 @@ export interface IAskUserQuestionItem {
   header: string;
   options: IAskUserQuestionOption[];
   multiSelect: boolean;
+  allowCustomAnswer?: boolean;
 }
 
 export interface ITimelineAskUserQuestion {

@@ -39,4 +39,24 @@ describe('buildKeySequence', () => {
   it('단일 질문·단일 선택 미선택은 첫 옵션(Enter)만', () => {
     expect(buildKeySequence([q('A', 3)], {})).toEqual(['Enter']);
   });
+
+  it('단일 질문 직접 입력은 마지막 옵션 선택 후 텍스트를 입력한다', () => {
+    expect(buildKeySequence([q('A', 2)], { 0: [2] }, { 0: '직접 쓴 답' })).toEqual([
+      'Down',
+      'Down',
+      { type: 'literal', value: '직접 쓴 답' },
+      'Enter',
+    ]);
+  });
+
+  it('다중 질문의 직접 입력은 마지막 제출 Enter를 유지한다', () => {
+    expect(buildKeySequence([q('A', 2), q('B', 2)], { 0: [0], 1: [2] }, { 1: 'custom' })).toEqual([
+      'Enter',
+      'Down',
+      'Down',
+      { type: 'literal', value: 'custom' },
+      'Enter',
+      'Enter',
+    ]);
+  });
 });

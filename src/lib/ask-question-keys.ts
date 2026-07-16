@@ -1,6 +1,8 @@
 import type { IAskUserQuestionItem } from '@/types/timeline';
 
 export type TAskSelections = Record<number, number[]>;
+export type TAskCustomAnswers = Record<number, string>;
+export type TAskInputStep = string | { type: 'literal'; value: string };
 
 /**
  * AskUserQuestion 폼 선택을 터미널 키 시퀀스로 변환한다.
@@ -15,9 +17,18 @@ export type TAskSelections = Record<number, number[]>;
 export const buildKeySequence = (
   questions: IAskUserQuestionItem[],
   selections: TAskSelections,
-): string[] => {
-  const keys: string[] = [];
+  customAnswers: TAskCustomAnswers = {},
+): TAskInputStep[] => {
+  const keys: TAskInputStep[] = [];
   questions.forEach((q, qIdx) => {
+    const customAnswer = !q.multiSelect && customAnswers[qIdx]?.trim();
+    if (customAnswer) {
+      for (let k = 0; k < q.options.length; k += 1) keys.push('Down');
+      keys.push({ type: 'literal', value: customAnswer });
+      keys.push('Enter');
+      return;
+    }
+
     const selected = [...(selections[qIdx] ?? [])].sort((a, b) => a - b);
     if (q.multiSelect) {
       let pos = 0;

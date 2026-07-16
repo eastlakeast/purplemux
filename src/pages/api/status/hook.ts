@@ -37,7 +37,9 @@ const handleClaudePreToolUse = (req: NextApiRequest, res: NextApiResponse) => {
     const items = parseAskUserQuestionInput(body.tool_input);
     log.debug({ session, count: items.length }, 'pre-tool-use AskUserQuestion');
     if (items.length > 0) {
-      getStatusManager().applyAgentHookMeta('claude', session, { askUserQuestionItems: items });
+      const manager = getStatusManager();
+      manager.applyAgentHookMeta('claude', session, { askUserQuestionItems: items });
+      manager.handleProviderEvent('claude', session, { kind: 'notification', notificationType: 'permission_prompt' });
     }
   }
   return res.status(204).end();

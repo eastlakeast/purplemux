@@ -28,6 +28,8 @@
   "permissionParseFailed": "Impossible de charger les options. Veuillez répondre directement dans l'onglet du terminal.",
   "askSubmit": "Envoyer",
   "askMultiSelectHint": "Espace pour sélectionner, Entrée pour envoyer",
+  "askCustomAnswerLabel": "Réponse personnalisée",
+  "askCustomAnswerPlaceholder": "Saisissez votre réponse...",
   "taskProgress": "Progression de la tâche",
   "toolUsageCount": "{count} utilisations d'outils",
   "diffShow": "Afficher le diff",
