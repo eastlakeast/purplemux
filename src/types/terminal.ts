@@ -87,9 +87,14 @@ export interface IWorkspaceGroup {
   collapsed?: boolean;
 }
 
+export type TWorkspaceSidebarItem =
+  | { type: 'group'; id: string }
+  | { type: 'workspace'; id: string };
+
 export interface IWorkspacesData {
   workspaces: IWorkspace[];
   groups?: IWorkspaceGroup[];
+  sidebarOrder?: TWorkspaceSidebarItem[];
   activeWorkspaceId?: string;
   sidebarCollapsed: boolean;
   sidebarWidth: number;

@@ -48,6 +48,7 @@ import useWebviewStore from '@/hooks/use-webview-store';
 import IconRenderer from '@/components/features/settings/icon-renderer';
 import SidebarRateLimits from '@/components/layout/sidebar-rate-limits';
 import isElectron from '@/hooks/use-is-electron';
+import { getVisuallyOrderedWorkspaces, normalizeWorkspaceSidebarOrder } from '@/lib/workspace-order';
 
 const MIN_WIDTH = 160;
 const MAX_WIDTH = 480;
@@ -63,6 +64,7 @@ const Sidebar = () => {
   const router = useRouter();
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const groups = useWorkspaceStore((s) => s.groups);
+  const sidebarOrder = useWorkspaceStore((s) => s.sidebarOrder);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const collapsed = useWorkspaceStore((s) => s.sidebarCollapsed);
   const width = useWorkspaceStore((s) => s.sidebarWidth);
@@ -115,12 +117,16 @@ const Sidebar = () => {
   const [deleteTarget, setDeleteTarget] = useState<IWorkspace | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [fadingOutIds, setFadingOutIds] = useState<Set<string>>(new Set());
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [dropTarget, setDropTarget] = useState<{
-    position: number;
-    groupId: string | null;
-    edge: 'before' | 'after' | 'group-start';
-  } | null>(null);
+  const [dragItem, setDragItem] = useState<
+    | { type: 'workspace'; workspaceId: string; flatIndex: number }
+    | { type: 'group'; groupId: string }
+    | null
+  >(null);
+  const [dropTarget, setDropTarget] = useState<
+    | { type: 'root'; insertionIndex: number }
+    | { type: 'group-member'; position: number; groupId: string; edge: 'before' | 'after' | 'group-start' }
+    | null
+  >(null);
 
   const [isDragging, setIsDragging] = useState(false);
   const isResizing = useRef(false);
@@ -260,81 +266,128 @@ const Sidebar = () => {
     [],
   );
 
-  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
-    setDragIndex(index);
+  const handleWorkspaceDragStart = useCallback((e: React.DragEvent, workspaceId: string, flatIndex: number) => {
+    e.stopPropagation();
+    setDragItem({ type: 'workspace', workspaceId, flatIndex });
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(index));
+    e.dataTransfer.setData('text/plain', workspaceId);
     requestAnimationFrame(() => {
-      (e.target as HTMLElement).style.opacity = '0.4';
+      (e.currentTarget as HTMLElement).style.opacity = '0.4';
+    });
+  }, []);
+
+  const handleGroupDragStart = useCallback((e: React.DragEvent, groupId: string) => {
+    setDragItem({ type: 'group', groupId });
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', groupId);
+    requestAnimationFrame(() => {
+      (e.currentTarget as HTMLElement).style.opacity = '0.6';
     });
   }, []);
 
   const handleDragEnd = useCallback((e: React.DragEvent) => {
-    (e.target as HTMLElement).style.opacity = '';
-    setDragIndex(null);
+    (e.currentTarget as HTMLElement).style.opacity = '';
+    setDragItem(null);
     setDropTarget(null);
   }, []);
 
-  const handleWsDragOver = useCallback(
-    (e: React.DragEvent, position: number, groupId: string | null) => {
-      if (dragIndex === null) return;
+  const handleMemberDragOver = useCallback(
+    (e: React.DragEvent, position: number, groupId: string) => {
+      if (dragItem?.type !== 'workspace') return;
       e.preventDefault();
+      e.stopPropagation();
       e.dataTransfer.dropEffect = 'move';
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const midpoint = rect.top + rect.height / 2;
       const edge: 'before' | 'after' = e.clientY < midpoint ? 'before' : 'after';
-      setDropTarget({ position, groupId, edge });
+      setDropTarget({ type: 'group-member', position, groupId, edge });
     },
-    [dragIndex],
+    [dragItem],
   );
 
   const handleGroupHeaderDragOver = useCallback(
     (e: React.DragEvent, firstWsPosition: number, groupId: string) => {
-      if (dragIndex === null) return;
+      if (dragItem?.type !== 'workspace') return;
       e.preventDefault();
+      e.stopPropagation();
       e.dataTransfer.dropEffect = 'move';
-      setDropTarget({ position: firstWsPosition, groupId, edge: 'group-start' });
+      setDropTarget({ type: 'group-member', position: firstWsPosition, groupId, edge: 'group-start' });
     },
-    [dragIndex],
+    [dragItem],
   );
 
-  const handleUngroupedAreaDragOver = useCallback(
-    (e: React.DragEvent, lastPosition: number) => {
-      if (dragIndex === null) return;
-      if (e.target !== e.currentTarget) return;
+  const handleRootDragOver = useCallback(
+    (e: React.DragEvent, insertionIndex: number) => {
+      if (!dragItem) return;
       e.preventDefault();
+      e.stopPropagation();
       e.dataTransfer.dropEffect = 'move';
-      setDropTarget({ position: lastPosition, groupId: null, edge: 'after' });
+      setDropTarget({ type: 'root', insertionIndex });
     },
-    [dragIndex],
+    [dragItem],
   );
 
-  const handleWsDrop = useCallback(
+  const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (dragIndex === null || !dropTarget) {
-        setDragIndex(null);
+      if (!dragItem || !dropTarget) {
+        setDragItem(null);
         setDropTarget(null);
         return;
       }
-      const insertBefore =
-        dropTarget.edge === 'before' || dropTarget.edge === 'group-start'
-          ? dropTarget.position
-          : dropTarget.position + 1;
-      const finalIdx = dragIndex < insertBefore ? insertBefore - 1 : insertBefore;
-      const current = useWorkspaceStore.getState().workspaces[dragIndex];
-      const groupChanged =
-        current && (current.groupId ?? null) !== (dropTarget.groupId ?? null);
-      if (finalIdx !== dragIndex || groupChanged) {
-        useWorkspaceStore
-          .getState()
-          .reorderWorkspaces(dragIndex, finalIdx, dropTarget.groupId);
+
+      const state = useWorkspaceStore.getState();
+      const rootOrder = normalizeWorkspaceSidebarOrder(state.workspaces, state.groups, state.sidebarOrder);
+
+      if (dropTarget.type === 'root') {
+        const draggedRoot = dragItem.type === 'group'
+          ? { type: 'group' as const, id: dragItem.groupId }
+          : { type: 'workspace' as const, id: dragItem.workspaceId };
+        const sourceRootIndex = rootOrder.findIndex(
+          (item) => item.type === draggedRoot.type && item.id === draggedRoot.id,
+        );
+        const nextRoot = rootOrder.filter(
+          (item) => item.type !== draggedRoot.type || item.id !== draggedRoot.id,
+        );
+        const insertionIndex = sourceRootIndex >= 0 && sourceRootIndex < dropTarget.insertionIndex
+          ? dropTarget.insertionIndex - 1
+          : dropTarget.insertionIndex;
+        nextRoot.splice(Math.max(0, Math.min(insertionIndex, nextRoot.length)), 0, draggedRoot);
+
+        let nextWorkspaces = state.workspaces;
+        if (dragItem.type === 'workspace') {
+          nextWorkspaces = state.workspaces.map((workspace) =>
+            workspace.id === dragItem.workspaceId ? { ...workspace, groupId: null } : workspace,
+          );
+        }
+        state.reorderWorkspaces(
+          getVisuallyOrderedWorkspaces(nextWorkspaces, state.groups, nextRoot),
+          nextRoot,
+        );
+      } else if (dragItem.type === 'workspace') {
+        const list = [...state.workspaces];
+        const sourceIndex = list.findIndex((workspace) => workspace.id === dragItem.workspaceId);
+        if (sourceIndex < 0) {
+          setDragItem(null);
+          setDropTarget(null);
+          return;
+        }
+        const [source] = list.splice(sourceIndex, 1);
+        const moved = { ...source, groupId: dropTarget.groupId };
+        const insertBefore = dropTarget.edge === 'after' ? dropTarget.position + 1 : dropTarget.position;
+        const adjustedIndex = sourceIndex < insertBefore ? insertBefore - 1 : insertBefore;
+        list.splice(Math.max(0, Math.min(adjustedIndex, list.length)), 0, moved);
+        const nextRoot = rootOrder.filter(
+          (item) => item.type !== 'workspace' || item.id !== dragItem.workspaceId,
+        );
+        state.reorderWorkspaces(list, nextRoot);
       }
-      setDragIndex(null);
+
+      setDragItem(null);
       setDropTarget(null);
     },
-    [dragIndex, dropTarget],
+    [dragItem, dropTarget],
   );
 
   const handleToggleCollapse = useCallback(() => {
@@ -346,11 +399,11 @@ const Sidebar = () => {
   type TRenderEntry = { ws: IWorkspace; flatIdx: number };
   type TRenderSection =
     | { type: 'group'; group: IWorkspaceGroup; workspaces: TRenderEntry[]; firstWsPosition: number }
-    | { type: 'ungrouped'; workspaces: TRenderEntry[]; lastPosition: number };
+    | { type: 'workspace'; entry: TRenderEntry };
 
   const renderedSections = useMemo<TRenderSection[]>(() => {
     const byGroup = new Map<string, TRenderEntry[]>();
-    const ungrouped: TRenderEntry[] = [];
+    const workspaceById = new Map<string, TRenderEntry>();
     workspaces.forEach((ws, flatIdx) => {
       const gid = ws.groupId ?? null;
       if (gid && groups.some((g) => g.id === gid)) {
@@ -358,45 +411,50 @@ const Sidebar = () => {
         list.push({ ws, flatIdx });
         byGroup.set(gid, list);
       } else {
-        ungrouped.push({ ws, flatIdx });
+        workspaceById.set(ws.id, { ws, flatIdx });
       }
     });
 
     const sections: TRenderSection[] = [];
-    for (const g of groups) {
-      const list = byGroup.get(g.id) ?? [];
-      const firstWsPosition = list[0]?.flatIdx ?? workspaces.length;
-      sections.push({ type: 'group', group: g, workspaces: list, firstWsPosition });
+    const groupById = new Map(groups.map((group) => [group.id, group]));
+    for (const item of normalizeWorkspaceSidebarOrder(workspaces, groups, sidebarOrder)) {
+      if (item.type === 'group') {
+        const group = groupById.get(item.id);
+        if (!group) continue;
+        const list = byGroup.get(item.id) ?? [];
+        const firstWsPosition = list[0]?.flatIdx ?? workspaces.length;
+        sections.push({ type: 'group', group, workspaces: list, firstWsPosition });
+        continue;
+      }
+      const entry = workspaceById.get(item.id);
+      if (entry) sections.push({ type: 'workspace', entry });
     }
-    sections.push({
-      type: 'ungrouped',
-      workspaces: ungrouped,
-      lastPosition: ungrouped.length > 0 ? ungrouped[ungrouped.length - 1].flatIdx : workspaces.length - 1,
-    });
     return sections;
-  }, [workspaces, groups]);
+  }, [workspaces, groups, sidebarOrder]);
 
   const renderWorkspaceRow = (entry: TRenderEntry) => {
     const { ws, flatIdx } = entry;
     const isDropBefore =
-      dropTarget?.position === flatIdx &&
+      dropTarget?.type === 'group-member' &&
+      dropTarget.position === flatIdx &&
       dropTarget.edge === 'before' &&
-      dragIndex !== null &&
-      dragIndex !== flatIdx;
+      dragItem?.type === 'workspace' &&
+      dragItem.flatIndex !== flatIdx;
     const isDropAfter =
-      dropTarget?.position === flatIdx &&
+      dropTarget?.type === 'group-member' &&
+      dropTarget.position === flatIdx &&
       dropTarget.edge === 'after' &&
-      dragIndex !== null &&
-      dragIndex !== flatIdx;
+      dragItem?.type === 'workspace' &&
+      dragItem.flatIndex !== flatIdx;
 
     return (
       <div
         key={ws.id}
         draggable
-        onDragStart={(e) => handleDragStart(e, flatIdx)}
+        onDragStart={(e) => handleWorkspaceDragStart(e, ws.id, flatIdx)}
         onDragEnd={handleDragEnd}
-        onDragOver={(e) => handleWsDragOver(e, flatIdx, ws.groupId ?? null)}
-        onDrop={handleWsDrop}
+        onDragOver={ws.groupId ? (e) => handleMemberDragOver(e, flatIdx, ws.groupId!) : undefined}
+        onDrop={handleDrop}
         style={{
           opacity: fadingOutIds.has(ws.id) ? 0 : undefined,
           transition: 'opacity 150ms ease-out',
@@ -517,7 +575,7 @@ const Sidebar = () => {
             className="flex-1 overflow-y-auto"
             style={{ scrollbarWidth: 'none' }}
             onDragOver={(e) => {
-              if (dragIndex === null) return;
+              if (!dragItem) return;
               e.preventDefault();
               e.dataTransfer.dropEffect = 'move';
             }}
@@ -530,18 +588,31 @@ const Sidebar = () => {
               </div>
             )}
 
-            {renderedSections.map((section) => {
+            {renderedSections.map((section, rootIndex) => {
               if (section.type === 'group') {
                 return (
                   <div key={`group-${section.group.id}`}>
                     <div
+                      className={cn(
+                        'h-1 transition-colors',
+                        dropTarget?.type === 'root' && dropTarget.insertionIndex === rootIndex && 'bg-[var(--focus-indicator)]',
+                      )}
+                      onDragOver={(e) => handleRootDragOver(e, rootIndex)}
+                      onDrop={handleDrop}
+                    />
+                    <div
+                      draggable
+                      onDragStart={(e) => handleGroupDragStart(e, section.group.id)}
+                      onDragEnd={handleDragEnd}
                       onDragOver={(e) =>
                         handleGroupHeaderDragOver(e, section.firstWsPosition, section.group.id)
                       }
-                      onDrop={handleWsDrop}
+                      onDrop={handleDrop}
                       style={{
                         borderBottom:
-                          dropTarget?.edge === 'group-start' && dropTarget.groupId === section.group.id
+                          dropTarget?.type === 'group-member' &&
+                          dropTarget.edge === 'group-start' &&
+                          dropTarget.groupId === section.group.id
                             ? '2px solid var(--focus-indicator)'
                             : undefined,
                       }}
@@ -560,15 +631,16 @@ const Sidebar = () => {
                       <div
                         className={cn(
                           'flex h-6 items-center px-3 text-[11px] italic text-muted-foreground/50',
-                          dragIndex !== null &&
-                            dropTarget?.edge === 'group-start' &&
+                          dragItem?.type === 'workspace' &&
+                            dropTarget?.type === 'group-member' &&
+                            dropTarget.edge === 'group-start' &&
                             dropTarget.groupId === section.group.id &&
                             'border-b-2 border-[var(--focus-indicator)]',
                         )}
                         onDragOver={(e) =>
                           handleGroupHeaderDragOver(e, section.firstWsPosition, section.group.id)
                         }
-                        onDrop={handleWsDrop}
+                        onDrop={handleDrop}
                       >
                         {t('emptyGroup')}
                       </div>
@@ -577,18 +649,37 @@ const Sidebar = () => {
                 );
               }
               return (
-                <div
-                  key="ungrouped"
-                  className="min-h-[8px]"
-                  onDragOver={(e) =>
-                    handleUngroupedAreaDragOver(e, section.lastPosition)
-                  }
-                  onDrop={handleWsDrop}
-                >
-                  {section.workspaces.map((entry) => renderWorkspaceRow(entry))}
+                <div key={`workspace-${section.entry.ws.id}`}>
+                  <div
+                    className={cn(
+                      'h-1 transition-colors',
+                      dropTarget?.type === 'root' && dropTarget.insertionIndex === rootIndex && 'bg-[var(--focus-indicator)]',
+                    )}
+                    onDragOver={(e) => handleRootDragOver(e, rootIndex)}
+                    onDrop={handleDrop}
+                  />
+                  <div
+                    onDragOver={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      handleRootDragOver(e, e.clientY < rect.top + rect.height / 2 ? rootIndex : rootIndex + 1);
+                    }}
+                    onDrop={handleDrop}
+                  >
+                    {renderWorkspaceRow(section.entry)}
+                  </div>
                 </div>
               );
             })}
+            <div
+              className={cn(
+                'h-2 transition-colors',
+                dropTarget?.type === 'root' &&
+                  dropTarget.insertionIndex === renderedSections.length &&
+                  'bg-[var(--focus-indicator)]',
+              )}
+              onDragOver={(e) => handleRootDragOver(e, renderedSections.length)}
+              onDrop={handleDrop}
+            />
           </div>
         ) : (
           <NotificationPanel className="px-2 pt-2 pb-2" />

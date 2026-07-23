@@ -35,6 +35,7 @@ import WorkspaceStatusIndicator from '@/components/features/workspace/workspace-
 import SidebarRateLimits from '@/components/layout/sidebar-rate-limits';
 import MobileWorkspaceGroupHeader from '@/components/features/mobile/mobile-workspace-group-header';
 import RenameGroupDialog from '@/components/features/workspace/rename-group-dialog';
+import { normalizeWorkspaceSidebarOrder } from '@/lib/workspace-order';
 
 const WorkspacePortsLabel = ({ workspaceId }: { workspaceId: string }) => {
   const label = useTabStore(
@@ -76,6 +77,7 @@ const MobileNavigationSheet = ({
   const router = useRouter();
   const mobileTab = useWorkspaceStore((s) => s.sidebarTab);
   const groups = useWorkspaceStore((s) => s.groups);
+  const sidebarOrder = useWorkspaceStore((s) => s.sidebarOrder);
 
   const handleMobileTabChange = useCallback((v: string) => {
     useWorkspaceStore.getState().setSidebarTab(v as 'workspace' | 'sessions');
@@ -272,12 +274,12 @@ const MobileNavigationSheet = ({
 
   type TSection =
     | { type: 'group'; group: IWorkspaceGroup; workspaces: IWorkspace[] }
-    | { type: 'ungrouped'; workspaces: IWorkspace[] };
+    | { type: 'workspace'; workspace: IWorkspace };
 
   const sections = useMemo<TSection[]>(() => {
     const validGroupIds = new Set(groups.map((g) => g.id));
     const byGroup = new Map<string, IWorkspace[]>();
-    const ungrouped: IWorkspace[] = [];
+    const workspaceById = new Map<string, IWorkspace>();
     for (const ws of workspaces) {
       const gid = ws.groupId ?? null;
       if (gid && validGroupIds.has(gid)) {
@@ -285,17 +287,22 @@ const MobileNavigationSheet = ({
         list.push(ws);
         byGroup.set(gid, list);
       } else {
-        ungrouped.push(ws);
+        workspaceById.set(ws.id, ws);
       }
     }
-    const out: TSection[] = groups.map((g) => ({
-      type: 'group',
-      group: g,
-      workspaces: byGroup.get(g.id) ?? [],
-    }));
-    out.push({ type: 'ungrouped', workspaces: ungrouped });
+    const groupById = new Map(groups.map((group) => [group.id, group]));
+    const out: TSection[] = [];
+    for (const item of normalizeWorkspaceSidebarOrder(workspaces, groups, sidebarOrder)) {
+      if (item.type === 'group') {
+        const group = groupById.get(item.id);
+        if (group) out.push({ type: 'group', group, workspaces: byGroup.get(item.id) ?? [] });
+        continue;
+      }
+      const workspace = workspaceById.get(item.id);
+      if (workspace) out.push({ type: 'workspace', workspace });
+    }
     return out;
-  }, [workspaces, groups]);
+  }, [workspaces, groups, sidebarOrder]);
 
   const renderWorkspaceRow = (ws: IWorkspace) => {
     const isExpanded = ws.id === expandedWsId;
@@ -405,9 +412,7 @@ const MobileNavigationSheet = ({
                   </div>
                 );
               }
-              return (
-                <div key="ungrouped">{section.workspaces.map(renderWorkspaceRow)}</div>
-              );
+              return renderWorkspaceRow(section.workspace);
             })}
           </div>
         ) : (
