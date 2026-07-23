@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { t } from '@/lib/i18n';
-import { getVisuallyOrderedWorkspaces } from '@/lib/workspace-order';
-import type { IWorkspace, IWorkspaceGroup, TPanelType } from '@/types/terminal';
+import { getVisuallyOrderedWorkspaces, normalizeWorkspaceSidebarOrder } from '@/lib/workspace-order';
+import type { IWorkspace, IWorkspaceGroup, TPanelType, TWorkspaceSidebarItem } from '@/types/terminal';
 
 const reorderToVisual = (
   workspaces: IWorkspace[],
   groups: IWorkspaceGroup[],
-): IWorkspace[] => getVisuallyOrderedWorkspaces(workspaces, groups);
+  sidebarOrder: TWorkspaceSidebarItem[],
+): IWorkspace[] => getVisuallyOrderedWorkspaces(workspaces, groups, sidebarOrder);
 
 interface IValidateResponse {
   valid: boolean;
@@ -18,6 +19,7 @@ interface IValidateResponse {
 export interface IWorkspaceInitialData {
   workspaces: IWorkspace[];
   groups?: IWorkspaceGroup[];
+  sidebarOrder?: TWorkspaceSidebarItem[];
   activeWorkspaceId?: string;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
@@ -26,6 +28,7 @@ export interface IWorkspaceInitialData {
 interface IWorkspaceState {
   workspaces: IWorkspace[];
   groups: IWorkspaceGroup[];
+  sidebarOrder: TWorkspaceSidebarItem[];
   activeWorkspaceId: string | null;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
@@ -46,13 +49,12 @@ interface IWorkspaceState {
   unmarkPendingDelete: (workspaceId: string) => void;
   switchWorkspace: (workspaceId: string) => void;
   renameWorkspace: (workspaceId: string, name: string) => Promise<boolean>;
-  reorderWorkspaces: (fromIndex: number, toIndex: number, nextGroupId?: string | null) => void;
+  reorderWorkspaces: (workspaces: IWorkspace[], sidebarOrder: TWorkspaceSidebarItem[]) => void;
   moveWorkspaceToGroup: (workspaceId: string, groupId: string | null) => Promise<boolean>;
   createGroup: (name?: string) => Promise<IWorkspaceGroup | null>;
   renameGroup: (groupId: string, name: string) => Promise<boolean>;
   ungroupGroup: (groupId: string) => Promise<boolean>;
   toggleGroupCollapsed: (groupId: string) => void;
-  reorderGroups: (fromIndex: number, toIndex: number) => void;
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
   saveSidebarWidth: (width: number) => void;
@@ -134,6 +136,7 @@ const bumpMutationFence = () => {
 const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
   workspaces: initialWs.workspaces,
   groups: [],
+  sidebarOrder: [],
   activeWorkspaceId: initialWs.workspaces.length > 0 ? resolveActiveWorkspaceId(initialWs.workspaces) : null,
   sidebarCollapsed: initialSidebar.sidebarCollapsed,
   sidebarWidth: initialSidebar.sidebarWidth,
@@ -145,12 +148,16 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
   pendingDeleteIds: new Set<string>(),
 
   hydrate: (data) => {
-    const activeWorkspaceId = resolveActiveWorkspaceId(data.workspaces, data.activeWorkspaceId);
+    const groups = data.groups ?? [];
+    const sidebarOrder = normalizeWorkspaceSidebarOrder(data.workspaces, groups, data.sidebarOrder);
+    const workspaces = reorderToVisual(data.workspaces, groups, sidebarOrder);
+    const activeWorkspaceId = resolveActiveWorkspaceId(workspaces, data.activeWorkspaceId);
     setStoredActiveWorkspaceId(activeWorkspaceId);
     if (activeWorkspaceId) saveActiveWorkspaceIdToServer(activeWorkspaceId);
     set({
-      workspaces: data.workspaces,
-      groups: data.groups ?? [],
+      workspaces,
+      groups,
+      sidebarOrder,
       activeWorkspaceId,
       sidebarCollapsed: data.sidebarCollapsed,
       sidebarWidth: data.sidebarWidth,
@@ -165,11 +172,15 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
       const res = await fetch('/api/workspace');
       if (!res.ok) throw new Error();
       const data = await res.json();
-      const activeWorkspaceId = resolveActiveWorkspaceId(data.workspaces, data.activeWorkspaceId);
+      const groups: IWorkspaceGroup[] = data.groups ?? [];
+      const sidebarOrder = normalizeWorkspaceSidebarOrder(data.workspaces, groups, data.sidebarOrder);
+      const workspaces = reorderToVisual(data.workspaces, groups, sidebarOrder);
+      const activeWorkspaceId = resolveActiveWorkspaceId(workspaces, data.activeWorkspaceId);
       setStoredActiveWorkspaceId(activeWorkspaceId);
       set({
-        workspaces: data.workspaces,
-        groups: data.groups ?? [],
+        workspaces,
+        groups,
+        sidebarOrder,
         activeWorkspaceId,
         sidebarCollapsed: data.sidebarCollapsed ?? false,
         sidebarWidth: data.sidebarWidth ?? 240,
@@ -213,16 +224,21 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
       }
 
       const serverGroups: IWorkspaceGroup[] = data.groups ?? [];
+      const serverSidebarOrder = normalizeWorkspaceSidebarOrder(serverList, serverGroups, data.sidebarOrder);
       const currentGroups = get().groups;
+      const currentSidebarOrder = get().sidebarOrder;
       const groupsChanged = JSON.stringify(currentGroups) !== JSON.stringify(serverGroups);
+      const sidebarOrderChanged = JSON.stringify(currentSidebarOrder) !== JSON.stringify(serverSidebarOrder);
       const nextGroups = groupsChanged ? serverGroups : currentGroups;
-      const nextWorkspaces = reorderToVisual(merged, nextGroups);
+      const nextSidebarOrder = sidebarOrderChanged ? serverSidebarOrder : currentSidebarOrder;
+      const nextWorkspaces = reorderToVisual(merged, nextGroups, nextSidebarOrder);
       const workspacesChanged = JSON.stringify(current) !== JSON.stringify(nextWorkspaces);
 
-      if (!workspacesChanged && !groupsChanged) return;
+      if (!workspacesChanged && !groupsChanged && !sidebarOrderChanged) return;
       set({
         workspaces: workspacesChanged ? nextWorkspaces : current,
         groups: nextGroups,
+        sidebarOrder: nextSidebarOrder,
       });
     } catch (err) {
       console.log(`[workspace-store] sync error: ${err instanceof Error ? err.message : err}`);
@@ -242,11 +258,15 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
       }
       const ws: IWorkspace = await res.json();
       bumpMutationFence();
-      set((state) => ({
-        workspaces: state.workspaces.some((w) => w.id === ws.id)
-          ? state.workspaces
-          : [...state.workspaces, ws],
-      }));
+      set((state) => {
+        if (state.workspaces.some((workspace) => workspace.id === ws.id)) return state;
+        const workspaces = [...state.workspaces, ws];
+        const sidebarOrder = normalizeWorkspaceSidebarOrder(workspaces, state.groups, [
+          ...state.sidebarOrder,
+          { type: 'workspace', id: ws.id },
+        ]);
+        return { workspaces: reorderToVisual(workspaces, state.groups, sidebarOrder), sidebarOrder };
+      });
       return ws;
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('workspace', 'createFailed');
@@ -270,13 +290,18 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
   removeWorkspace: (workspaceId) => {
     set((state) => {
       const remaining = state.workspaces.filter((w) => w.id !== workspaceId);
+      const sidebarOrder = normalizeWorkspaceSidebarOrder(remaining, state.groups, state.sidebarOrder);
       const needSwitch = state.activeWorkspaceId === workspaceId;
       const activeWorkspaceId = needSwitch ? (remaining[0]?.id ?? null) : state.activeWorkspaceId;
       if (needSwitch) {
         setStoredActiveWorkspaceId(activeWorkspaceId);
         if (activeWorkspaceId) saveActiveWorkspaceIdToServer(activeWorkspaceId);
       }
-      return { workspaces: remaining, activeWorkspaceId };
+      return {
+        workspaces: reorderToVisual(remaining, state.groups, sidebarOrder),
+        sidebarOrder,
+        activeWorkspaceId,
+      };
     });
   },
 
@@ -331,21 +356,18 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
     }
   },
 
-  reorderWorkspaces: (fromIndex, toIndex, nextGroupId) => {
-    const list = [...get().workspaces];
-    const [moved] = list.splice(fromIndex, 1);
-    if (nextGroupId !== undefined) {
-      moved.groupId = nextGroupId;
-    }
-    list.splice(toIndex, 0, moved);
+  reorderWorkspaces: (workspaces, sidebarOrder) => {
+    const normalizedSidebarOrder = normalizeWorkspaceSidebarOrder(workspaces, get().groups, sidebarOrder);
+    const list = reorderToVisual(workspaces, get().groups, normalizedSidebarOrder);
     bumpMutationFence();
-    set({ workspaces: list });
+    set({ workspaces: list, sidebarOrder: normalizedSidebarOrder });
 
     fetch('/api/workspace/reorder', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         items: list.map((w) => ({ id: w.id, groupId: w.groupId ?? null })),
+        sidebarOrder: normalizedSidebarOrder,
       }),
     }).catch(() => {
       toast.error(t('workspace', 'reorderFailed'));
@@ -358,12 +380,31 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
     if (!prev) return false;
     const prevGroupId = prev.groupId ?? null;
     if (prevGroupId === groupId) return true;
+    const previousSidebarOrder = get().sidebarOrder;
     bumpMutationFence();
     set((state) => {
-      const updated = state.workspaces.map((w) =>
-        w.id === workspaceId ? { ...w, groupId } : w,
-      );
-      return { workspaces: reorderToVisual(updated, state.groups) };
+      const updated = [...state.workspaces];
+      const index = updated.findIndex((workspace) => workspace.id === workspaceId);
+      if (index < 0) return state;
+      const [source] = updated.splice(index, 1);
+      const moved = { ...source, groupId };
+      const sidebarOrder = state.sidebarOrder
+        .filter((item) => item.type !== 'workspace' || item.id !== workspaceId);
+      if (groupId) {
+        const lastMemberIndex = updated.findLastIndex((workspace) => workspace.groupId === groupId);
+        updated.splice(lastMemberIndex + 1, 0, moved);
+      } else {
+        updated.push(moved);
+        const previousGroupIndex = prevGroupId
+          ? sidebarOrder.findIndex((item) => item.type === 'group' && item.id === prevGroupId)
+          : -1;
+        sidebarOrder.splice(previousGroupIndex >= 0 ? previousGroupIndex + 1 : sidebarOrder.length, 0, {
+          type: 'workspace',
+          id: workspaceId,
+        });
+      }
+      const normalized = normalizeWorkspaceSidebarOrder(updated, state.groups, sidebarOrder);
+      return { workspaces: reorderToVisual(updated, state.groups, normalized), sidebarOrder: normalized };
     });
     try {
       const res = await fetch(`/api/workspace/${workspaceId}`, {
@@ -378,7 +419,10 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
         const reverted = state.workspaces.map((w) =>
           w.id === workspaceId ? { ...w, groupId: prevGroupId } : w,
         );
-        return { workspaces: reorderToVisual(reverted, state.groups) };
+        return {
+          workspaces: reorderToVisual(reverted, state.groups, previousSidebarOrder),
+          sidebarOrder: previousSidebarOrder,
+        };
       });
       toast.error(t('workspace', 'reorderFailed'));
       return false;
@@ -395,9 +439,15 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
       if (!res.ok) throw new Error();
       const group: IWorkspaceGroup = await res.json();
       bumpMutationFence();
-      set((state) => ({
-        groups: state.groups.some((g) => g.id === group.id) ? state.groups : [...state.groups, group],
-      }));
+      set((state) => {
+        if (state.groups.some((candidate) => candidate.id === group.id)) return state;
+        const groups = [...state.groups, group];
+        const sidebarOrder = normalizeWorkspaceSidebarOrder(state.workspaces, groups, [
+          ...state.sidebarOrder,
+          { type: 'group', id: group.id },
+        ]);
+        return { groups, sidebarOrder };
+      });
       return group;
     } catch {
       toast.error(t('workspace', 'createFailed'));
@@ -431,15 +481,24 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
   ungroupGroup: async (groupId) => {
     const prevGroups = get().groups;
     const prevWorkspaces = get().workspaces;
+    const prevSidebarOrder = get().sidebarOrder;
     bumpMutationFence();
     set((state) => {
       const nextGroups = state.groups.filter((g) => g.id !== groupId);
       const updated = state.workspaces.map((w) =>
         w.groupId === groupId ? { ...w, groupId: null } : w,
       );
+      const memberItems: TWorkspaceSidebarItem[] = state.workspaces
+        .filter((workspace) => workspace.groupId === groupId)
+        .map((workspace) => ({ type: 'workspace', id: workspace.id }));
+      const sidebarOrder = [...state.sidebarOrder];
+      const rootIndex = sidebarOrder.findIndex((item) => item.type === 'group' && item.id === groupId);
+      if (rootIndex >= 0) sidebarOrder.splice(rootIndex, 1, ...memberItems);
+      const normalized = normalizeWorkspaceSidebarOrder(updated, nextGroups, sidebarOrder);
       return {
         groups: nextGroups,
-        workspaces: reorderToVisual(updated, nextGroups),
+        workspaces: reorderToVisual(updated, nextGroups, normalized),
+        sidebarOrder: normalized,
       };
     });
     try {
@@ -447,7 +506,7 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
       if (!res.ok && res.status !== 404) throw new Error();
       return true;
     } catch {
-      set({ groups: prevGroups, workspaces: prevWorkspaces });
+      set({ groups: prevGroups, workspaces: prevWorkspaces, sidebarOrder: prevSidebarOrder });
       toast.error(t('workspace', 'deleteFailed'));
       return false;
     }
@@ -465,26 +524,6 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ collapsed: next }),
     }).catch(() => { /* tolerate */ });
-  },
-
-  reorderGroups: (fromIndex, toIndex) => {
-    const list = [...get().groups];
-    const [moved] = list.splice(fromIndex, 1);
-    list.splice(toIndex, 0, moved);
-    bumpMutationFence();
-    set((state) => ({
-      groups: list,
-      workspaces: reorderToVisual(state.workspaces, list),
-    }));
-
-    fetch('/api/workspace/group/reorder', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupIds: list.map((g) => g.id) }),
-    }).catch(() => {
-      toast.error(t('workspace', 'reorderFailed'));
-      get().fetchWorkspaces();
-    });
   },
 
   toggleSidebar: () => {

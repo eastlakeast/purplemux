@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { reorderWorkspaces, type IReorderItem } from '@/lib/workspace-store';
+import type { TWorkspaceSidebarItem } from '@/types/terminal';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== 'PATCH') {
@@ -23,7 +24,15 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     return res.status(400).json({ error: 'items array required' });
   }
 
-  const ok = await reorderWorkspaces(items);
+  let sidebarOrder: TWorkspaceSidebarItem[] | undefined;
+  if (Array.isArray(body.sidebarOrder)) {
+    sidebarOrder = body.sidebarOrder.flatMap((item: { type?: unknown; id?: unknown }) => {
+      if ((item.type !== 'group' && item.type !== 'workspace') || typeof item.id !== 'string') return [];
+      return [{ type: item.type, id: item.id } as TWorkspaceSidebarItem];
+    });
+  }
+
+  const ok = await reorderWorkspaces(items, sidebarOrder);
   if (!ok) {
     return res.status(400).json({ error: 'Invalid order' });
   }
