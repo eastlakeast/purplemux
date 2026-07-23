@@ -11,5 +11,9 @@
   "deviceTip": "選擇裝置",
   "rotate": "旋轉",
   "zoomTip": "縮放",
-  "zoomFit": "適應"
+  "zoomFit": "適應",
+  "zoomIn": "放大",
+  "zoomOut": "縮小",
+  "actualSize": "實際大小",
+  "fileLoadError": "無法開啟此檔案"
 }

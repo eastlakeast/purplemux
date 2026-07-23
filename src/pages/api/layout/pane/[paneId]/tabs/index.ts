@@ -23,7 +23,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   const paneId = req.query.paneId as string;
-  const { name, cwd, panelType, command, resumeSessionId } = req.body ?? {};
+  const { name, cwd, panelType, command, resumeSessionId, webUrl } = req.body ?? {};
 
   const provider = resumeSessionId ? getProviderByPanelType(panelType ?? 'claude-code') : null;
   if (resumeSessionId) {
@@ -40,7 +40,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   try {
-    const tab = await addTabToPane(wsId, paneId, name, cwd, panelType, command);
+    const tab = await addTabToPane(wsId, paneId, name, cwd, panelType, command, webUrl);
     if (!tab) {
       return res.status(404).json({ error: 'Pane not found' });
     }

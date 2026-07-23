@@ -1130,6 +1130,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
         transition: 'opacity 200ms ease-out, border-color 150ms',
       }}
       role="region"
+      data-pane-id={paneId}
       aria-label={`Pane ${paneNumber}`}
       aria-current={isFocused ? 'true' : undefined}
       onClick={handleFocusPane}

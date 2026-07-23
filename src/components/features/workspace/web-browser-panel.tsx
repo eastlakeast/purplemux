@@ -1,9 +1,11 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, ArrowRight, RotateCw, Globe, Smartphone, Monitor, RotateCcw, ChevronDown } from 'lucide-react';
+import { ArrowLeft, ArrowRight, RotateCw, Globe, Smartphone, Monitor, RotateCcw, ChevronDown, FileText, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import isElectron from '@/hooks/use-is-electron';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { localFilePathFromHref } from '@/lib/local-file-links';
+import { getLocalFileKind } from '@/lib/local-file-viewer';
 
 interface IElectronWebview extends HTMLElement {
   loadURL(url: string): Promise<void>;
@@ -120,7 +122,12 @@ const saveLastViewedUrl = (configuredUrl: string, currentUrl: string) => {
 
 const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelProps) => {
   const t = useTranslations('webBrowser');
-  const resolvedUrl = initialUrl ? (getLastViewedUrl(initialUrl) ?? initialUrl) : '';
+  const configuredLocalFilePath = localFilePathFromHref(initialUrl);
+  const resolvedUrl = initialUrl
+    ? configuredLocalFilePath
+      ? initialUrl
+      : (getLastViewedUrl(initialUrl) ?? initialUrl)
+    : '';
   const [url, setUrl] = useState(resolvedUrl);
   const [addressValue, setAddressValue] = useState(resolvedUrl);
   const [canNavigate, setCanNavigate] = useState(isElectron);
@@ -146,6 +153,9 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
     () => DEVICE_PRESETS.find((d) => d.id === deviceId) ?? DEVICE_PRESETS[0],
     [deviceId],
   );
+  const localFilePath = useMemo(() => localFilePathFromHref(addressValue), [addressValue]);
+  const localFileKind = localFilePath ? getLocalFileKind(localFilePath) : null;
+  const effectiveMobileMode = mobileMode && !localFilePath;
 
   const deviceSize = useMemo(() => {
     if (orientation === 'landscape') {
@@ -165,10 +175,10 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
   const effectiveScale = zoom === 'fit' ? fitScale : zoom;
 
   useEffect(() => {
-    if (initialUrl && addressValue) {
+    if (initialUrl && addressValue && !configuredLocalFilePath) {
       saveLastViewedUrl(initialUrl, addressValue);
     }
-  }, [addressValue, initialUrl]);
+  }, [addressValue, configuredLocalFilePath, initialUrl]);
 
   useEffect(() => {
     if (!isElectron || !url || !webviewContainerRef.current) return;
@@ -178,7 +188,9 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
 
     if (!wv) {
       wv = document.createElement('webview') as unknown as IElectronWebview;
-      wv.setAttribute('partition', 'persist:web-browser');
+      if (!localFilePathFromHref(url)) {
+        wv.setAttribute('partition', 'persist:web-browser');
+      }
       wv.style.width = '100%';
       wv.style.height = '100%';
       wv.style.border = 'none';
@@ -240,11 +252,11 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
     const api = getBridgeAPI();
     if (!api?.setBrowserDeviceEmulation) return;
 
-    const targetUa = mobileMode ? selectedDevice.userAgent : null;
+    const targetUa = effectiveMobileMode ? selectedDevice.userAgent : null;
     const uaChanged = emulationUaRef.current !== targetUa;
     emulationUaRef.current = targetUa;
 
-    const config = mobileMode
+    const config = effectiveMobileMode
       ? {
           width: deviceSize.width,
           height: deviceSize.height,
@@ -261,7 +273,7 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
         if (uaChanged) webviewRef.current?.reload();
       })
       .catch(() => {});
-  }, [tabId, mobileMode, selectedDevice, deviceSize, orientation]);
+  }, [tabId, effectiveMobileMode, selectedDevice, deviceSize, orientation]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -273,12 +285,12 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
     const ro = new ResizeObserver(update);
     ro.observe(stage);
     return () => ro.disconnect();
-  }, [mobileMode]);
+  }, [effectiveMobileMode]);
 
   useEffect(() => {
     const wv = webviewRef.current;
     if (!wv) return;
-    if (mobileMode) {
+    if (effectiveMobileMode) {
       wv.style.width = `${deviceSize.width}px`;
       wv.style.height = `${deviceSize.height}px`;
       wv.style.transformOrigin = 'top left';
@@ -289,7 +301,7 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
       wv.style.transform = '';
       wv.style.transformOrigin = '';
     }
-  }, [mobileMode, deviceSize, effectiveScale, url]);
+  }, [effectiveMobileMode, deviceSize, effectiveScale, url]);
 
   useEffect(() => {
     if (isElectron || !iframeRef.current || !url) return;
@@ -387,7 +399,7 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
   };
 
   const showNavButtons = isElectron || canNavigate;
-  const showEmulatorToolbar = isElectron && mobileMode;
+  const showEmulatorToolbar = isElectron && effectiveMobileMode;
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -433,7 +445,7 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
             </>
           )}
 
-          {isElectron && (
+          {isElectron && !localFilePath && (
             <button
               className={cn(
                 'flex h-7 w-7 items-center justify-center rounded hover:bg-accent',
@@ -447,19 +459,29 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
             </button>
           )}
 
-          <div className="ml-1 flex flex-1 items-center gap-2 rounded-md border border-border bg-secondary px-2.5 py-1">
-            <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <input
-              className={cn(
-                'min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/50',
-                canNavigate ? 'text-foreground' : 'text-muted-foreground',
-              )}
-              placeholder={t('urlPlaceholder')}
-              value={addressValue}
-              onChange={(e) => setAddressValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              spellCheck={false}
-            />
+          <div className="ml-1 flex min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-secondary px-2.5 py-1">
+            {localFileKind === 'image'
+              ? <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              : localFilePath
+                ? <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                : <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+            {localFilePath ? (
+              <div className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={localFilePath}>
+                {localFilePath}
+              </div>
+            ) : (
+              <input
+                className={cn(
+                  'min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/50',
+                  canNavigate ? 'text-foreground' : 'text-muted-foreground',
+                )}
+                placeholder={t('urlPlaceholder')}
+                value={addressValue}
+                onChange={(e) => setAddressValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                spellCheck={false}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -538,16 +560,16 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
             ref={stageRef}
             className={cn(
               'relative min-h-0 flex-1 overflow-auto',
-              mobileMode ? 'flex items-center justify-center bg-muted/20 p-4' : '',
+              effectiveMobileMode ? 'flex items-center justify-center bg-muted/20 p-4' : '',
             )}
           >
             <div
               ref={webviewContainerRef}
               className={cn(
-                mobileMode && 'overflow-hidden rounded-sm bg-background shadow-lg ring-1 ring-border',
+                effectiveMobileMode && 'overflow-hidden rounded-sm bg-background shadow-lg ring-1 ring-border',
               )}
               style={
-                mobileMode
+                effectiveMobileMode
                   ? {
                       width: deviceSize.width * effectiveScale,
                       height: deviceSize.height * effectiveScale,

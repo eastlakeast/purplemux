@@ -288,7 +288,7 @@ export const deletePane = async (
   }
 };
 
-export const addTabToPane = async (wsId: string, paneId: string, name?: string, cwd?: string, panelType?: string, command?: string): Promise<ITab | null> =>
+export const addTabToPane = async (wsId: string, paneId: string, name?: string, cwd?: string, panelType?: string, command?: string, webUrl?: string): Promise<ITab | null> =>
   withLock(async () => {
     const filePath = resolveLayoutFile(wsId);
     const layout = await readLayoutFile(filePath);
@@ -310,7 +310,7 @@ export const addTabToPane = async (wsId: string, paneId: string, name?: string, 
     const nextOrder = pane.tabs.length > 0 ? Math.max(...pane.tabs.map((t) => t.order)) + 1 : 0;
     const defaultName = defaultTabNameForPanelType(panelType as ITab['panelType']);
     const tabName = name?.trim() || defaultName;
-    const tab: ITab = { id: tabId, sessionName, name: tabName, order: nextOrder, ...(cwd ? { cwd } : {}), ...(panelType ? { panelType: panelType as ITab['panelType'] } : {}) };
+    const tab: ITab = { id: tabId, sessionName, name: tabName, order: nextOrder, ...(cwd ? { cwd } : {}), ...(panelType ? { panelType: panelType as ITab['panelType'] } : {}), ...(webUrl ? { webUrl } : {}) };
 
     pane.tabs.push(tab);
     pane.activeTabId = tabId;
@@ -635,6 +635,8 @@ export const splitPaneInLayout = async (
   orientation: 'horizontal' | 'vertical',
   cwd?: string,
   panelType?: string,
+  name?: string,
+  webUrl?: string,
 ): Promise<ILayoutData | null> => {
   const isWebBrowser = panelType === 'web-browser';
   const paneId = generatePaneId();
@@ -646,7 +648,14 @@ export const splitPaneInLayout = async (
   }
 
   const defaultName = defaultTabNameForPanelType(panelType as ITab['panelType']);
-  const tab: ITab = { id: tabId, sessionName, name: defaultName, order: 0, ...(cwd ? { cwd } : {}) };
+  const tab: ITab = {
+    id: tabId,
+    sessionName,
+    name: name?.trim() || defaultName,
+    order: 0,
+    ...(cwd ? { cwd } : {}),
+    ...(webUrl ? { webUrl } : {}),
+  };
   if (panelType) tab.panelType = panelType as ITab['panelType'];
 
   const newPane: IPaneNode = { type: 'pane', id: paneId, tabs: [tab], activeTabId: tabId };

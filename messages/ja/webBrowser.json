@@ -11,5 +11,9 @@
   "deviceTip": "デバイスを選択",
   "rotate": "回転",
   "zoomTip": "ズーム",
-  "zoomFit": "フィット"
+  "zoomFit": "フィット",
+  "zoomIn": "拡大",
+  "zoomOut": "縮小",
+  "actualSize": "原寸大",
+  "fileLoadError": "このファイルを開けません"
 }

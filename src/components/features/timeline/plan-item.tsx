@@ -1,4 +1,4 @@
-import { useState, useEffect, memo, type AnchorHTMLAttributes } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import { ClipboardList, Eye, TerminalSquare, Check } from 'lucide-react';
 import Spinner from '@/components/ui/spinner';
@@ -7,6 +7,9 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { timelineUrlTransform } from '@/lib/timeline-markdown-url';
+import { remarkLocalFileLinks } from '@/lib/remark-local-file-links';
+import { TimelineMarkdownLink } from '@/components/features/timeline/timeline-markdown-link';
 import {
   Dialog,
   DialogContent,
@@ -16,12 +19,10 @@ import {
 } from '@/components/ui/dialog';
 import type { ITimelinePlan } from '@/types/timeline';
 
-const REMARK_PLUGINS = [remarkGfm];
+const REMARK_PLUGINS = [remarkGfm, remarkLocalFileLinks];
 const REHYPE_PLUGINS = [rehypeHighlight];
 const MARKDOWN_COMPONENTS = {
-  a: (props: AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a {...props} target="_blank" rel="noopener noreferrer" />
-  ),
+  a: TimelineMarkdownLink,
 };
 
 interface IPlanItemProps {
@@ -203,6 +204,7 @@ const PlanItem = ({ entry, sessionName }: IPlanItemProps) => {
                 remarkPlugins={REMARK_PLUGINS}
                 rehypePlugins={REHYPE_PLUGINS}
                 components={MARKDOWN_COMPONENTS}
+                urlTransform={timelineUrlTransform}
               >
                 {entry.markdown}
               </ReactMarkdown>
