@@ -17,13 +17,14 @@
   "ungrouped": "Без группы",
   "defaultGroupName": "Новая группа",
   "emptyGroup": "(пусто)",
-  "sessionTeam": "Команда сеансов",
+  "groupColor": "Цвет группы",
+  "sessionTeam": "Команда агентов",
   "teamOrchestrator": "Оркестратор",
   "teamWorkers": "Рабочие сеансы",
   "teamAutomatic": "Автоматически",
   "teamUnavailable": "Недоступно",
   "teamNoAgentTabs": "В этой группе нет вкладок Claude Code или Codex.",
-  "teamDisable": "Отключить команду",
-  "teamSaved": "Команда сеансов сохранена",
-  "teamSaveFailed": "Не удалось сохранить команду сеансов"
+  "teamDisable": "Отключить команду агентов",
+  "teamSaved": "Команда агентов сохранена",
+  "teamSaveFailed": "Не удалось сохранить команду агентов"
 }

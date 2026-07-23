@@ -19,7 +19,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
 
   const team = await resolveWorkspaceTeamContext({ workspaceId, sessionName });
   if (!team) {
-    return res.status(404).json({ error: 'No session team is configured for this workspace group' });
+    return res.status(404).json({ error: 'No agent team is configured for this workspace group' });
   }
   return res.status(200).json(team);
 };

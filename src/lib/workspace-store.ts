@@ -17,14 +17,20 @@ import {
 } from '@/lib/layout-store';
 import type { ICreateLayoutOptions } from '@/lib/layout-store';
 import { listProviders } from '@/lib/providers/registry';
-import { getVisuallyOrderedWorkspaces } from '@/lib/workspace-order';
-import { normalizeWorkspaceSidebarOrder } from '@/lib/workspace-order';
+import {
+  getVisuallyOrderedWorkspaces,
+  moveWorkspaceHierarchyItem,
+  normalizeWorkspaceHierarchy,
+  removeWorkspaceGroupFromHierarchy,
+} from '@/lib/workspace-order';
+import { isWorkspaceGroupColor } from '@/lib/workspace-group-colors';
 import type {
   IWorkspace,
   IWorkspaceGroup,
   IWorkspaceTeamConfig,
   IWorkspacesData,
   ILayoutData,
+  TWorkspaceGroupColor,
   TWorkspaceSidebarItem,
 } from '@/types/terminal';
 
@@ -97,22 +103,52 @@ const ensureGroups = (data: IWorkspacesData): IWorkspaceGroup[] => {
 };
 
 const normalizeWorkspaceOrder = (data: IWorkspacesData): void => {
-  const groups = ensureGroups(data);
-  data.sidebarOrder = normalizeWorkspaceSidebarOrder(data.workspaces, groups, data.sidebarOrder);
-  data.workspaces = getVisuallyOrderedWorkspaces(data.workspaces, groups, data.sidebarOrder);
+  const hierarchy = normalizeWorkspaceHierarchy(data.workspaces, ensureGroups(data), data.sidebarOrder);
+  data.groups = hierarchy.groups;
+  data.sidebarOrder = hierarchy.sidebarOrder;
+  data.workspaces = getVisuallyOrderedWorkspaces(
+    hierarchy.workspaces,
+    hierarchy.groups,
+    hierarchy.sidebarOrder,
+  );
+  cleanupWorkspaceTeamReferences(data);
 };
 
-const removeWorkspaceFromGroupTeam = (
+const workspaceBelongsToGroupTree = (
+  workspace: IWorkspace,
   groups: IWorkspaceGroup[],
-  groupId: string | null | undefined,
-  workspaceId: string,
-): void => {
-  if (!groupId) return;
-  const group = groups.find((candidate) => candidate.id === groupId);
-  if (group?.team?.orchestrator.workspaceId === workspaceId) {
-    delete group.team;
-  } else if (group?.team?.workerTabOverrides?.[workspaceId]) {
-    delete group.team.workerTabOverrides[workspaceId];
+  groupId: string,
+): boolean => {
+  const byId = new Map(groups.map((group) => [group.id, group]));
+  let currentId = workspace.groupId ?? null;
+  while (currentId) {
+    if (currentId === groupId) return true;
+    currentId = byId.get(currentId)?.parentId ?? null;
+  }
+  return false;
+};
+
+const cleanupWorkspaceTeamReferences = (data: IWorkspacesData): void => {
+  const groups = data.groups ?? [];
+  for (const group of groups) {
+    if (!group.team?.orchestrator) continue;
+    const orchestrator = data.workspaces.find(
+      (workspace) => workspace.id === group.team?.orchestrator.workspaceId,
+    );
+    if (!orchestrator || !workspaceBelongsToGroupTree(orchestrator, groups, group.id)) {
+      delete group.team;
+      continue;
+    }
+    if (!group.team.workerTabOverrides) continue;
+    for (const workspaceId of Object.keys(group.team.workerTabOverrides)) {
+      const workspace = data.workspaces.find((candidate) => candidate.id === workspaceId);
+      if (!workspace || !workspaceBelongsToGroupTree(workspace, groups, group.id)) {
+        delete group.team.workerTabOverrides[workspaceId];
+      }
+    }
+    if (Object.keys(group.team.workerTabOverrides).length === 0) {
+      delete group.team.workerTabOverrides;
+    }
   }
 };
 
@@ -138,6 +174,9 @@ const readWorkspacesFile = async (): Promise<IWorkspacesData | null> => {
     if (!Array.isArray(data.sidebarOrder)) data.sidebarOrder = undefined;
     for (const g of data.groups) {
       delete (g as unknown as { order?: number }).order;
+      if (g.parentId !== null && typeof g.parentId !== 'string') g.parentId = null;
+      if (!Array.isArray(g.childOrder)) g.childOrder = undefined;
+      if (g.color !== undefined && !isWorkspaceGroupColor(g.color)) delete g.color;
     }
     const validGroupIds = new Set(data.groups.map((g) => g.id));
     for (const ws of data.workspaces) {
@@ -317,7 +356,11 @@ export const getWorkspaces = async (): Promise<{
   return {
     workspaces: data.workspaces,
     groups: data.groups ?? [],
-    sidebarOrder: normalizeWorkspaceSidebarOrder(data.workspaces, data.groups ?? [], data.sidebarOrder),
+    sidebarOrder: normalizeWorkspaceHierarchy(
+      data.workspaces,
+      data.groups ?? [],
+      data.sidebarOrder,
+    ).sidebarOrder,
     activeWorkspaceId: data.activeWorkspaceId,
     sidebarCollapsed: data.sidebarCollapsed,
     sidebarWidth: data.sidebarWidth,
@@ -391,8 +434,6 @@ export const deleteWorkspace = async (workspaceId: string): Promise<boolean> =>
     } catch {}
 
     data.workspaces.splice(idx, 1);
-    removeWorkspaceFromGroupTeam(data.groups ?? [], ws.groupId, workspaceId);
-
     await writeWorkspacesFile(data);
     log.info(`Deleted: ${workspaceId} (${ws.name})`);
     return true;
@@ -445,26 +486,44 @@ export interface IReorderItem {
   groupId?: string | null;
 }
 
+export interface IReorderGroupItem {
+  id: string;
+  parentId?: string | null;
+  childOrder?: TWorkspaceSidebarItem[];
+}
+
 export const reorderWorkspaces = async (
   items: IReorderItem[],
   sidebarOrder?: TWorkspaceSidebarItem[],
+  groupItems?: IReorderGroupItem[],
 ): Promise<boolean> =>
   withLock(async () => {
     const data = (await readWorkspacesFile()) ?? emptyState();
     const byId = new Map(data.workspaces.map((w) => [w.id, w]));
-    const validGroupIds = new Set((data.groups ?? []).map((g) => g.id));
+    const groups = data.groups ?? [];
+    const validGroupIds = new Set(groups.map((g) => g.id));
+
+    if (groupItems) {
+      if (groupItems.length !== groups.length) return false;
+      const groupById = new Map(groups.map((group) => [group.id, group]));
+      const reorderedGroups: IWorkspaceGroup[] = [];
+      for (const item of groupItems) {
+        const group = groupById.get(item.id);
+        if (!group || reorderedGroups.some((candidate) => candidate.id === item.id)) return false;
+        group.parentId = item.parentId && validGroupIds.has(item.parentId) ? item.parentId : null;
+        group.childOrder = item.childOrder;
+        reorderedGroups.push(group);
+      }
+      data.groups = reorderedGroups;
+    }
 
     const reordered: IWorkspace[] = [];
     for (const item of items) {
       const ws = byId.get(item.id);
       if (!ws) return false;
       if (item.groupId !== undefined) {
-        const previousGroupId = ws.groupId ?? null;
         const nextGroupId = item.groupId && validGroupIds.has(item.groupId) ? item.groupId : null;
-        if (previousGroupId !== nextGroupId) {
-          removeWorkspaceFromGroupTeam(data.groups ?? [], previousGroupId, ws.id);
-          ws.groupId = nextGroupId;
-        }
+        ws.groupId = nextGroupId;
       }
       reordered.push(ws);
     }
@@ -472,9 +531,7 @@ export const reorderWorkspaces = async (
     if (reordered.length !== data.workspaces.length) return false;
 
     data.workspaces = reordered;
-    if (sidebarOrder) {
-      data.sidebarOrder = normalizeWorkspaceSidebarOrder(reordered, data.groups ?? [], sidebarOrder);
-    }
+    if (sidebarOrder) data.sidebarOrder = sidebarOrder;
     await writeWorkspacesFile(data);
     return true;
   });
@@ -488,12 +545,11 @@ export const createGroup = async (name: string): Promise<IWorkspaceGroup> =>
       id: `grp-${nanoid(6)}`,
       name: trimmed,
       collapsed: false,
+      parentId: null,
+      childOrder: [],
     };
     groups.push(group);
-    data.sidebarOrder = [
-      ...normalizeWorkspaceSidebarOrder(data.workspaces, groups.filter((candidate) => candidate.id !== group.id), data.sidebarOrder),
-      { type: 'group', id: group.id },
-    ];
+    data.sidebarOrder = [...(data.sidebarOrder ?? []), { type: 'group', id: group.id }];
     await writeWorkspacesFile(data);
     log.debug(`Group created: ${group.id} (${group.name})`);
     return group;
@@ -524,6 +580,20 @@ export const setGroupCollapsed = async (groupId: string, collapsed: boolean): Pr
     return true;
   });
 
+export const setGroupColor = async (
+  groupId: string,
+  color: TWorkspaceGroupColor,
+): Promise<IWorkspaceGroup | null> =>
+  withLock(async () => {
+    const data = await readWorkspacesFile();
+    if (!data) return null;
+    const group = (data.groups ?? []).find((candidate) => candidate.id === groupId);
+    if (!group) return null;
+    group.color = color;
+    await writeWorkspacesFile(data);
+    return { ...group };
+  });
+
 export const setGroupTeam = async (
   groupId: string,
   team: IWorkspaceTeamConfig | null,
@@ -546,22 +616,16 @@ export const ungroupGroup = async (groupId: string): Promise<boolean> =>
   withLock(async () => {
     const data = await readWorkspacesFile();
     if (!data) return false;
-    const groups = ensureGroups(data);
-    const idx = groups.findIndex((g) => g.id === groupId);
-    if (idx === -1) return false;
-    const sidebarOrder = normalizeWorkspaceSidebarOrder(data.workspaces, groups, data.sidebarOrder);
-    const rootIndex = sidebarOrder.findIndex((item) => item.type === 'group' && item.id === groupId);
-    const memberItems: TWorkspaceSidebarItem[] = data.workspaces
-      .filter((workspace) => workspace.groupId === groupId)
-      .map((workspace) => ({ type: 'workspace', id: workspace.id }));
-    for (const ws of data.workspaces) {
-      if (ws.groupId === groupId) ws.groupId = null;
-    }
-    groups.splice(idx, 1);
-    if (rootIndex >= 0) {
-      sidebarOrder.splice(rootIndex, 1, ...memberItems);
-    }
-    data.sidebarOrder = sidebarOrder;
+    const hierarchy = removeWorkspaceGroupFromHierarchy(
+      data.workspaces,
+      ensureGroups(data),
+      data.sidebarOrder ?? [],
+      groupId,
+    );
+    if (!hierarchy) return false;
+    data.workspaces = hierarchy.workspaces;
+    data.groups = hierarchy.groups;
+    data.sidebarOrder = hierarchy.sidebarOrder;
     await writeWorkspacesFile(data);
     log.info(`Group ungrouped: ${groupId}`);
     return true;
@@ -591,31 +655,26 @@ export const setWorkspaceGroup = async (workspaceId: string, groupId: string | n
     if (!data) return false;
     const ws = data.workspaces.find((w) => w.id === workspaceId);
     if (!ws) return false;
-    const validGroupIds = new Set((data.groups ?? []).map((g) => g.id));
+    const groups = data.groups ?? [];
+    const validGroupIds = new Set(groups.map((g) => g.id));
     const nextGroupId = groupId && validGroupIds.has(groupId) ? groupId : null;
-    const previousGroupId = ws.groupId ?? null;
-    if (previousGroupId === nextGroupId) return true;
-    const sidebarOrder = normalizeWorkspaceSidebarOrder(data.workspaces, data.groups ?? [], data.sidebarOrder)
-      .filter((item) => item.type !== 'workspace' || item.id !== workspaceId);
-
-    const currentIndex = data.workspaces.findIndex((workspace) => workspace.id === workspaceId);
-    data.workspaces.splice(currentIndex, 1);
-    ws.groupId = nextGroupId;
-    removeWorkspaceFromGroupTeam(data.groups ?? [], previousGroupId, workspaceId);
-    if (nextGroupId) {
-      const lastMemberIndex = data.workspaces.findLastIndex((workspace) => workspace.groupId === nextGroupId);
-      data.workspaces.splice(lastMemberIndex + 1, 0, ws);
-    } else {
-      data.workspaces.push(ws);
-      const previousGroupIndex = previousGroupId
-        ? sidebarOrder.findIndex((item) => item.type === 'group' && item.id === previousGroupId)
-        : -1;
-      sidebarOrder.splice(previousGroupIndex >= 0 ? previousGroupIndex + 1 : sidebarOrder.length, 0, {
-        type: 'workspace',
-        id: workspaceId,
-      });
-    }
-    data.sidebarOrder = sidebarOrder;
+    if ((ws.groupId ?? null) === nextGroupId) return true;
+    const hierarchy = normalizeWorkspaceHierarchy(data.workspaces, groups, data.sidebarOrder);
+    const targetOrder = nextGroupId
+      ? hierarchy.groups.find((group) => group.id === nextGroupId)?.childOrder ?? []
+      : hierarchy.sidebarOrder;
+    const moved = moveWorkspaceHierarchyItem(
+      hierarchy.workspaces,
+      hierarchy.groups,
+      hierarchy.sidebarOrder,
+      { type: 'workspace', id: workspaceId },
+      nextGroupId,
+      targetOrder.length,
+    );
+    if (!moved) return false;
+    data.workspaces = moved.workspaces;
+    data.groups = moved.groups;
+    data.sidebarOrder = moved.sidebarOrder;
     await writeWorkspacesFile(data);
     return true;
   });

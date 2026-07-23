@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildWorkspaceTeamAliases,
+  findWorkspaceAgentTeamGroupId,
   matchWorkspaceTeamMembers,
   type IResolvedWorkspaceTeam,
 } from '@/lib/workspace-team';
-import type { IWorkspace } from '@/types/terminal';
+import type { IWorkspace, IWorkspaceGroup } from '@/types/terminal';
 
 const workspaces: IWorkspace[] = [
   { id: 'ws-one', name: 'AIOS Backend', directories: ['/one'] },
@@ -43,7 +44,7 @@ const team: IResolvedWorkspaceTeam = {
   currentMember: null,
 };
 
-describe('workspace session team', () => {
+describe('workspace agent team', () => {
   it('creates shell-friendly aliases and disambiguates duplicate names', () => {
     expect(Object.fromEntries(buildWorkspaceTeamAliases(workspaces))).toEqual({
       'ws-one': 'aios-backend',
@@ -61,5 +62,21 @@ describe('workspace session team', () => {
 
   it('can restrict dispatch targets to workers', () => {
     expect(matchWorkspaceTeamMembers(team, 'orchestrator', true)).toEqual([]);
+  });
+
+  it('inherits the nearest configured agent team from parent groups', () => {
+    const groups: IWorkspaceGroup[] = [
+      { id: 'root', name: 'Root', team: { orchestrator: { workspaceId: 'a', tabId: 'ta' } } },
+      { id: 'child', name: 'Child', parentId: 'root' },
+      {
+        id: 'nested-team',
+        name: 'Nested team',
+        parentId: 'child',
+        team: { orchestrator: { workspaceId: 'b', tabId: 'tb' } },
+      },
+    ];
+
+    expect(findWorkspaceAgentTeamGroupId(groups, 'child')).toBe('root');
+    expect(findWorkspaceAgentTeamGroupId(groups, 'nested-team')).toBe('nested-team');
   });
 });

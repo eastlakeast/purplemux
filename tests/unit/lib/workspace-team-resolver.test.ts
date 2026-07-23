@@ -4,18 +4,21 @@ const fixtures = vi.hoisted(() => ({
   data: {
     workspaces: [
       { id: 'ws-orch', name: 'Orchestrator', directories: ['/orch'], groupId: 'grp-team' },
-      { id: 'ws-auto', name: 'Auto Worker', directories: ['/auto'], groupId: 'grp-team' },
+      { id: 'ws-auto', name: 'Auto Worker', directories: ['/auto'], groupId: 'grp-child' },
       { id: 'ws-override', name: 'Override Worker', directories: ['/override'], groupId: 'grp-team' },
       { id: 'ws-empty', name: 'Empty Worker', directories: ['/empty'], groupId: 'grp-team' },
     ],
-    groups: [{
-      id: 'grp-team',
-      name: 'Product',
-      team: {
-        orchestrator: { workspaceId: 'ws-orch', tabId: 'tab-orch' },
-        workerTabOverrides: { 'ws-override': 'tab-override-2' },
+    groups: [
+      {
+        id: 'grp-team',
+        name: 'Product',
+        team: {
+          orchestrator: { workspaceId: 'ws-orch', tabId: 'tab-orch' },
+          workerTabOverrides: { 'ws-override': 'tab-override-2' },
+        },
       },
-    }],
+      { id: 'grp-child', name: 'Backend', parentId: 'grp-team' },
+    ],
     sidebarOrder: [],
     sidebarCollapsed: false,
     sidebarWidth: 240,
@@ -66,7 +69,11 @@ vi.mock('@/lib/layout-store', () => ({
   getLayout: vi.fn(async (workspaceId: string) => fixtures.layouts[workspaceId]),
 }));
 
-import { resolveWorkspaceTeam, validateWorkspaceTeamConfig } from '@/lib/workspace-team';
+import {
+  resolveWorkspaceTeam,
+  resolveWorkspaceTeamContext,
+  validateWorkspaceTeamConfig,
+} from '@/lib/workspace-team';
 
 describe('workspace team resolver', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -88,5 +95,15 @@ describe('workspace team resolver', () => {
     await expect(validateWorkspaceTeamConfig('grp-team', {
       orchestrator: { workspaceId: 'ws-orch', tabId: 'missing' },
     })).resolves.toMatch('Orchestrator');
+  });
+
+  it('resolves a parent agent team from a nested workspace', async () => {
+    const team = await resolveWorkspaceTeamContext({
+      workspaceId: 'ws-auto',
+      sessionName: 'session-auto',
+    });
+
+    expect(team?.groupId).toBe('grp-team');
+    expect(team?.currentRole).toBe('worker');
   });
 });

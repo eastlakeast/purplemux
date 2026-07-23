@@ -1,6 +1,7 @@
 import { getLayout } from '@/lib/layout-store';
 import { collectPanes } from '@/lib/layout-tree';
 import { getWorkspaces } from '@/lib/workspace-store';
+import { getWorkspaceGroupDescendantIds } from '@/lib/workspace-order';
 import type {
   ITab,
   IWorkspace,
@@ -85,11 +86,29 @@ export const buildWorkspaceTeamAliases = (workspaces: IWorkspace[]): Map<string,
   return aliases;
 };
 
+export const findWorkspaceAgentTeamGroupId = (
+  groups: IWorkspaceGroup[],
+  workspaceGroupId: string,
+): string | null => {
+  const groupById = new Map(groups.map((group) => [group.id, group]));
+  let groupId: string | null = workspaceGroupId;
+  while (groupId) {
+    const group = groupById.get(groupId);
+    if (!group) return null;
+    if (group.team) return group.id;
+    groupId = group.parentId ?? null;
+  }
+  return null;
+};
+
 const loadWorkspaceTeamSource = async (groupId: string): Promise<IWorkspaceTeamSource | null> => {
   const data = await getWorkspaces();
   const group = data.groups.find((candidate) => candidate.id === groupId);
   if (!group) return null;
-  const workspaces = data.workspaces.filter((workspace) => workspace.groupId === groupId);
+  const descendantIds = getWorkspaceGroupDescendantIds(data.groups, groupId);
+  const workspaces = data.workspaces.filter(
+    (workspace) => workspace.groupId && descendantIds.has(workspace.groupId),
+  );
   const options = await Promise.all(workspaces.map(async (workspace) => {
     const layout = await getLayout(workspace.id, workspace.directories[0]);
     const tabs = collectPanes(layout.root)
@@ -244,7 +263,8 @@ export const resolveWorkspaceTeamContext = async (context: {
   }
 
   if (!workspace?.groupId) return null;
-  return resolveWorkspaceTeam(workspace.groupId, context.sessionName);
+  const teamGroupId = findWorkspaceAgentTeamGroupId(data.groups, workspace.groupId);
+  return teamGroupId ? resolveWorkspaceTeam(teamGroupId, context.sessionName) : null;
 };
 
 export const matchWorkspaceTeamMembers = (

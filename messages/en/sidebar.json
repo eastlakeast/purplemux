@@ -17,13 +17,14 @@
   "ungrouped": "Ungrouped",
   "defaultGroupName": "New Group",
   "emptyGroup": "(empty)",
-  "sessionTeam": "Session team",
+  "groupColor": "Group color",
+  "sessionTeam": "Agent team",
   "teamOrchestrator": "Orchestrator",
   "teamWorkers": "Worker sessions",
   "teamAutomatic": "Automatic",
   "teamUnavailable": "Unavailable",
   "teamNoAgentTabs": "This group has no Claude Code or Codex tabs.",
-  "teamDisable": "Disable team",
-  "teamSaved": "Session team saved",
-  "teamSaveFailed": "Failed to save session team"
+  "teamDisable": "Disable agent team",
+  "teamSaved": "Agent team saved",
+  "teamSaveFailed": "Failed to save agent team"
 }

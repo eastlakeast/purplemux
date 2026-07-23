@@ -17,13 +17,14 @@
   "ungrouped": "Sin agrupar",
   "defaultGroupName": "Nuevo grupo",
   "emptyGroup": "(vacío)",
-  "sessionTeam": "Equipo de sesiones",
+  "groupColor": "Color del grupo",
+  "sessionTeam": "Equipo de agentes",
   "teamOrchestrator": "Orquestador",
   "teamWorkers": "Sesiones de trabajo",
   "teamAutomatic": "Automático",
   "teamUnavailable": "No disponible",
   "teamNoAgentTabs": "Este grupo no tiene pestañas de Claude Code ni Codex.",
-  "teamDisable": "Desactivar equipo",
-  "teamSaved": "Equipo de sesiones guardado",
-  "teamSaveFailed": "No se pudo guardar el equipo de sesiones"
+  "teamDisable": "Desactivar equipo de agentes",
+  "teamSaved": "Equipo de agentes guardado",
+  "teamSaveFailed": "No se pudo guardar el equipo de agentes"
 }

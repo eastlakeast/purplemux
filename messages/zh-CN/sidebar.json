@@ -17,13 +17,14 @@
   "ungrouped": "未分组",
   "defaultGroupName": "新建分组",
   "emptyGroup": "（空）",
-  "sessionTeam": "会话团队",
+  "groupColor": "组颜色",
+  "sessionTeam": "智能体团队",
   "teamOrchestrator": "协调器",
   "teamWorkers": "工作会话",
   "teamAutomatic": "自动",
   "teamUnavailable": "不可用",
   "teamNoAgentTabs": "此分组中没有 Claude Code 或 Codex 标签页。",
-  "teamDisable": "停用团队",
-  "teamSaved": "会话团队已保存",
-  "teamSaveFailed": "无法保存会话团队"
+  "teamDisable": "停用智能体团队",
+  "teamSaved": "智能体团队已保存",
+  "teamSaveFailed": "无法保存智能体团队"
 }

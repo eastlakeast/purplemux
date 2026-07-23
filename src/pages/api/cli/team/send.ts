@@ -50,7 +50,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
 
   const team = await resolveWorkspaceTeamContext({ workspaceId, sessionName });
   if (!team) {
-    return res.status(404).json({ error: 'No session team is configured for this workspace group' });
+    return res.status(404).json({ error: 'No agent team is configured for this workspace group' });
   }
   if (team.currentRole !== 'orchestrator' || !team.currentMember) {
     return res.status(403).json({ error: 'Only the configured orchestrator tab can dispatch team tasks' });

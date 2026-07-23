@@ -17,13 +17,14 @@
   "ungrouped": "Gruplanmamış",
   "defaultGroupName": "Yeni Grup",
   "emptyGroup": "(boş)",
-  "sessionTeam": "Oturum ekibi",
+  "groupColor": "Grup rengi",
+  "sessionTeam": "Ajan ekibi",
   "teamOrchestrator": "Orkestratör",
   "teamWorkers": "Çalışan oturumları",
   "teamAutomatic": "Otomatik",
   "teamUnavailable": "Kullanılamıyor",
   "teamNoAgentTabs": "Bu grupta Claude Code veya Codex sekmesi yok.",
-  "teamDisable": "Ekibi devre dışı bırak",
-  "teamSaved": "Oturum ekibi kaydedildi",
-  "teamSaveFailed": "Oturum ekibi kaydedilemedi"
+  "teamDisable": "Ajan ekibini devre dışı bırak",
+  "teamSaved": "Ajan ekibi kaydedildi",
+  "teamSaveFailed": "Ajan ekibi kaydedilemedi"
 }

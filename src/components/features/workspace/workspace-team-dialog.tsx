@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import Spinner from '@/components/ui/spinner';
 import useWorkspaceStore from '@/hooks/use-workspace-store';
+import { getWorkspaceGroupDescendantIds } from '@/lib/workspace-order';
 import type { ITab, IWorkspace, IWorkspaceGroup, IWorkspaceTeamConfig } from '@/types/terminal';
 
 const AUTOMATIC = '__automatic__';
@@ -51,10 +52,15 @@ const WorkspaceTeamDialog = ({
 }: IWorkspaceTeamDialogProps) => {
   const t = useTranslations('sidebar');
   const tc = useTranslations('common');
+  const groups = useWorkspaceStore((state) => state.groups);
+  const memberGroupIds = useMemo(
+    () => group ? getWorkspaceGroupDescendantIds(groups, group.id) : new Set<string>(),
+    [group, groups],
+  );
   const options = useMemo<IAgentTabOption[]>(() => {
     if (!group) return [];
     return workspaces
-      .filter((workspace) => workspace.groupId === group.id)
+      .filter((workspace) => workspace.groupId && memberGroupIds.has(workspace.groupId))
       .flatMap((workspace) => (workspaceTabs[workspace.id] ?? [])
         .filter(isTeamAgentTab)
         .map((tab) => ({
@@ -63,7 +69,7 @@ const WorkspaceTeamDialog = ({
           value: `${workspace.id}/${tab.id}`,
           label: `${workspace.name} / ${tabLabel(tab)}`,
         })));
-  }, [group, workspaces, workspaceTabs]);
+  }, [group, memberGroupIds, workspaces, workspaceTabs]);
 
   const configuredOrchestrator = group?.team
     ? `${group.team.orchestrator.workspaceId}/${group.team.orchestrator.tabId}`
@@ -87,7 +93,7 @@ const WorkspaceTeamDialog = ({
 
   const orchestrator = options.find((option) => option.value === orchestratorValue) ?? null;
   const groupWorkspaces = group
-    ? workspaces.filter((workspace) => workspace.groupId === group.id)
+    ? workspaces.filter((workspace) => workspace.groupId && memberGroupIds.has(workspace.groupId))
     : [];
   const workerWorkspaces = groupWorkspaces.filter(
     (workspace) => workspace.id !== orchestrator?.workspace.id,
