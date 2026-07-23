@@ -1,5 +1,5 @@
 import { useCallback, useState, memo } from 'react';
-import { ChevronDown, ChevronRight, MoreHorizontal, Pencil, FolderMinus } from 'lucide-react';
+import { ChevronDown, ChevronRight, MoreHorizontal, Pencil, FolderMinus, Network } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { IWorkspaceGroup } from '@/types/terminal';
@@ -49,6 +49,7 @@ const MobileWorkspaceGroupHeader = ({
       <span className="min-w-0 flex-1 truncate">
         {group.name} <span className="text-muted-foreground/60">({count})</span>
       </span>
+      {group.team && <Network size={12} className="shrink-0 text-[var(--focus-indicator)]" />}
       <Popover open={menuOpen} onOpenChange={setMenuOpen}>
         <PopoverTrigger
           render={

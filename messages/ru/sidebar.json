@@ -16,5 +16,14 @@
   "removeFromGroup": "Убрать из группы",
   "ungrouped": "Без группы",
   "defaultGroupName": "Новая группа",
-  "emptyGroup": "(пусто)"
+  "emptyGroup": "(пусто)",
+  "sessionTeam": "Команда сеансов",
+  "teamOrchestrator": "Оркестратор",
+  "teamWorkers": "Рабочие сеансы",
+  "teamAutomatic": "Автоматически",
+  "teamUnavailable": "Недоступно",
+  "teamNoAgentTabs": "В этой группе нет вкладок Claude Code или Codex.",
+  "teamDisable": "Отключить команду",
+  "teamSaved": "Команда сеансов сохранена",
+  "teamSaveFailed": "Не удалось сохранить команду сеансов"
 }

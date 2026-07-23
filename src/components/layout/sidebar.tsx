@@ -31,6 +31,7 @@ import type { ITab, IWorkspace, IWorkspaceGroup } from '@/types/terminal';
 import useWorkspaceStore from '@/hooks/use-workspace-store';
 import WorkspaceItem from '@/components/features/workspace/workspace-item';
 import WorkspaceGroupHeader from '@/components/features/workspace/workspace-group-header';
+import WorkspaceTeamDialog from '@/components/features/workspace/workspace-team-dialog';
 import dynamic from 'next/dynamic';
 
 const SettingsDialog = dynamic(
@@ -114,6 +115,7 @@ const Sidebar = () => {
   }, [setSettingsOpen]);
 
   const [isCreating, setIsCreating] = useState(false);
+  const [teamGroupId, setTeamGroupId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<IWorkspace | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [fadingOutIds, setFadingOutIds] = useState<Set<string>>(new Set());
@@ -196,6 +198,10 @@ const Sidebar = () => {
 
   const handleUngroup = useCallback((groupId: string) => {
     useWorkspaceStore.getState().ungroupGroup(groupId);
+  }, []);
+
+  const handleConfigureTeam = useCallback((groupId: string) => {
+    setTeamGroupId(groupId);
   }, []);
 
   const handleDeleteRequest = useCallback(
@@ -623,6 +629,7 @@ const Sidebar = () => {
                         onToggle={handleToggleGroup}
                         onRename={handleRenameGroup}
                         onUngroup={handleUngroup}
+                        onConfigureTeam={handleConfigureTeam}
                       />
                     </div>
                     {!section.group.collapsed &&
@@ -857,6 +864,15 @@ const Sidebar = () => {
 
       {settingsOpen && <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />}
       <CheatSheetDialog />
+      <WorkspaceTeamDialog
+        group={groups.find((group) => group.id === teamGroupId) ?? null}
+        workspaces={workspaces}
+        workspaceTabs={workspaceTabs}
+        open={teamGroupId !== null}
+        onOpenChange={(open) => {
+          if (!open) setTeamGroupId(null);
+        }}
+      />
 
       <AlertDialog
         open={!!deleteTarget}

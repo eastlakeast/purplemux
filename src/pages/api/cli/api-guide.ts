@@ -41,6 +41,23 @@ GET /api/cli/tabs/<tabId>/result?workspaceId=WS
   Capture the current pane content.
   Response: { "content": "..." }
 
+## Group session teams
+
+Inside a purplemux tmux tab, the CLI infers workspaceId and sessionName. HTTP
+clients can provide either context explicitly.
+
+GET /api/cli/team?workspaceId=WS[&sessionName=TMUX_SESSION]
+GET /api/cli/team?sessionName=TMUX_SESSION
+  Resolve the configured group team, selected agent tabs, aliases, and caller role.
+
+POST /api/cli/team/send
+  Body: { "workspaceId"?: "WS", "sessionName"?: "...", "target": "ALIAS" | "all", "content": "..." }
+  Dispatch a structured task from the configured orchestrator tab to workers.
+
+POST /api/cli/team/reply
+  Body: { "workspaceId"?: "WS", "sessionName"?: "...", "content": "..." }
+  Send a structured report from a configured worker tab to the orchestrator.
+
 ## Web-browser tabs
 
 These endpoints only work when the tab's panelType is "web-browser" and the webview
