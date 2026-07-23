@@ -16,6 +16,7 @@ import { getStatusManager } from './src/lib/status-manager';
 import { ensureHookSettings, removePortFile } from './src/lib/hook-settings';
 import { enqueueSystemToast } from './src/lib/sync-server';
 import { getCliToken } from './src/lib/cli-token';
+import { ensureCliShim } from './src/lib/cli-shim';
 import { acquireLock, releaseLock, registerLockCleanup } from './src/lib/lock';
 import { scanSessions, applyConfig } from './src/lib/tmux';
 import { initWorkspaceStore, getWorkspaces, writeAllWorkspacePrompts } from './src/lib/workspace-store';
@@ -399,6 +400,9 @@ export const start = async (opts?: IStartOptions): Promise<IStartResult> => {
     });
   }
   getCliToken();
+  await ensureCliShim().catch((err) => {
+    log.warn(`CLI shim installation failed: ${err instanceof Error ? err.message : err}`);
+  });
   const { workspaces } = await getWorkspaces();
   await writeAllWorkspacePrompts(workspaces);
 
