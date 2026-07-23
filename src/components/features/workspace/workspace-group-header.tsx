@@ -44,6 +44,7 @@ const WorkspaceGroupHeader = ({
 }: IWorkspaceGroupHeaderProps) => {
   const t = useTranslations('sidebar');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [colorMenuOpen, setColorMenuOpen] = useState(false);
   const { isEditing, draft, setDraft, inputRef, startEditing, commit, handleKeyDown } =
     useInlineEdit({
       value: group.name,
@@ -103,7 +104,13 @@ const WorkspaceGroupHeader = ({
             aria-label={t('sessionTeam')}
           />
         )}
-        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+        <Popover
+          open={menuOpen}
+          onOpenChange={(open) => {
+            setMenuOpen(open);
+            if (!open) setColorMenuOpen(false);
+          }}
+        >
           <PopoverTrigger
             render={
               <button
@@ -126,35 +133,54 @@ const WorkspaceGroupHeader = ({
               <Network className="h-3.5 w-3.5" />
               {t('sessionTeam')}
             </button>
-            <div className="border-y border-border px-2 py-2">
-              <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+            <Popover open={colorMenuOpen} onOpenChange={setColorMenuOpen}>
+              <PopoverTrigger
+                render={
+                  <button
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                }
+              >
                 <Palette className="h-3.5 w-3.5" />
-                {t('groupColor')}
-              </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {WORKSPACE_GROUP_COLORS.map((color) => {
-                  const selected = (group.color ?? 'neutral') === color.id;
-                  return (
-                    <button
-                      key={color.id}
-                      className={cn(
-                        'flex h-6 w-6 items-center justify-center rounded border border-border',
-                        selected && 'ring-1 ring-[var(--focus-indicator)]',
-                      )}
-                      style={{ backgroundColor: color.css }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onColorChange(group.id, color.id);
-                      }}
-                      aria-label={t('groupColor')}
-                      title={t('groupColor')}
-                    >
-                      {selected && <Check className="h-3.5 w-3.5 text-white drop-shadow" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                <span className="flex-1">{t('groupColor')}</span>
+                <span
+                  className="h-3 w-3 rounded-sm border border-foreground/20"
+                  style={{
+                    backgroundColor: WORKSPACE_GROUP_COLORS.find(
+                      (color) => color.id === (group.color ?? 'neutral'),
+                    )?.css,
+                  }}
+                />
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              </PopoverTrigger>
+              <PopoverContent side="right" align="start" className="w-auto gap-0 p-2">
+                <div className="grid grid-cols-4 gap-1.5">
+                  {WORKSPACE_GROUP_COLORS.map((color) => {
+                    const selected = (group.color ?? 'neutral') === color.id;
+                    return (
+                      <button
+                        key={color.id}
+                        className={cn(
+                          'flex h-6 w-6 items-center justify-center rounded border border-border',
+                          selected && 'ring-1 ring-[var(--focus-indicator)]',
+                        )}
+                        style={{ backgroundColor: color.css }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onColorChange(group.id, color.id);
+                          setColorMenuOpen(false);
+                        }}
+                        aria-label={t('groupColor')}
+                        title={t('groupColor')}
+                      >
+                        {selected && <Check className="h-3.5 w-3.5 text-white drop-shadow" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
             <button
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
               onClick={handleRenameAction}
