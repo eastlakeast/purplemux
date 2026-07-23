@@ -7,6 +7,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const readFileOrNull = (file) => {
   try {
@@ -73,6 +74,114 @@ const cmdWorkspaces = async () => {
   requireEnv();
   const { body } = await api('GET', '/api/cli/workspaces');
   out(body);
+};
+
+const currentTmuxSessionName = () => {
+  if (!process.env.TMUX) return null;
+  try {
+    return execFileSync('tmux', ['display-message', '-p', '#S'], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 2000,
+    }).trim() || null;
+  } catch {
+    return null;
+  }
+};
+
+const teamContext = (args) => {
+  const sessionName = currentTmuxSessionName();
+  const inferredWorkspaceId = sessionName?.match(/^pt-(ws-.+?)-pane-/)?.[1] ?? null;
+  const workspaceId = flagValue(args, '--workspace') || flagValue(args, '-w') || inferredWorkspaceId;
+  if (!workspaceId && !sessionName) {
+    die('run this inside a purplemux tab or provide --workspace');
+  }
+  return { ...(workspaceId ? { workspaceId } : {}), ...(sessionName ? { sessionName } : {}) };
+};
+
+const getTeam = async (args) => {
+  const context = teamContext(args);
+  const params = new URLSearchParams(context);
+  const { body } = await api('GET', `/api/cli/team?${params.toString()}`);
+  return { team: body, context };
+};
+
+const matchTeamMembers = (team, target) => {
+  const members = [team.orchestrator, ...team.workers].filter(Boolean);
+  if (!target || target.toLowerCase() === 'all') return members;
+  const normalized = target.toLowerCase();
+  return members.filter((member) =>
+    member.alias.toLowerCase() === normalized ||
+    member.workspaceId.toLowerCase() === normalized ||
+    member.tabId?.toLowerCase() === normalized ||
+    member.workspaceName.toLowerCase() === normalized,
+  );
+};
+
+const cmdTeamShow = async (args) => {
+  requireEnv();
+  const { team } = await getTeam(args);
+  out(team);
+};
+
+const cmdTeamSend = async (args) => {
+  requireEnv();
+  const rest = stripFlags(args, ['--workspace', '-w']);
+  const target = rest[0];
+  const content = rest.slice(1).join(' ');
+  if (!target) die('worker alias or "all" is required');
+  if (!content) die('content is required');
+  const context = teamContext(args);
+  const { body } = await api('POST', '/api/cli/team/send', { ...context, target, content });
+  out(body);
+};
+
+const cmdTeamReply = async (args) => {
+  requireEnv();
+  const rest = stripFlags(args, ['--workspace', '-w']);
+  const content = rest.join(' ');
+  if (!content) die('content is required');
+  const context = teamContext(args);
+  const { body } = await api('POST', '/api/cli/team/reply', { ...context, content });
+  out(body);
+};
+
+const cmdTeamStatus = async (args) => {
+  requireEnv();
+  const rest = stripFlags(args, ['--workspace', '-w']);
+  const { team } = await getTeam(args);
+  const members = matchTeamMembers(team, rest[0]);
+  if (members.length === 0) die(`team member not found: ${rest[0]}`);
+  const results = [];
+  for (const member of members) {
+    if (!member.tabId) {
+      results.push({ alias: member.alias, workspaceId: member.workspaceId, available: false });
+      continue;
+    }
+    const { body } = await api(
+      'GET',
+      `/api/cli/tabs/${member.tabId}/status?workspaceId=${encodeURIComponent(member.workspaceId)}`,
+    );
+    results.push({ alias: member.alias, role: member.role, ...body });
+  }
+  out(results);
+};
+
+const cmdTeamResult = async (args) => {
+  requireEnv();
+  const rest = stripFlags(args, ['--workspace', '-w']);
+  const target = rest[0];
+  if (!target || target.toLowerCase() === 'all') die('one team member alias is required');
+  const { team } = await getTeam(args);
+  const members = matchTeamMembers(team, target);
+  if (members.length !== 1) die(members.length === 0 ? `team member not found: ${target}` : `ambiguous team member: ${target}`);
+  const member = members[0];
+  if (!member.tabId) die(`team member has no Claude Code or Codex tab: ${target}`);
+  const { body } = await api(
+    'GET',
+    `/api/cli/tabs/${member.tabId}/result?workspaceId=${encodeURIComponent(member.workspaceId)}`,
+  );
+  out({ alias: member.alias, workspaceId: member.workspaceId, tabId: member.tabId, ...body });
 };
 
 const cmdTabList = async (args) => {
@@ -280,6 +389,12 @@ Commands:
   tab browser network -w WS TAB_ID         Read recent network entries, or with --request ID to fetch body
                           [--since MS] [--method M] [--url SUBSTR] [--status CODE] [--request ID]
   tab browser eval -w WS TAB_ID EXPR       Evaluate JS expression inside the tab; returns serialized value
+  team show [-w WS]                        Show the current group team and your role
+  team members [-w WS]                     Alias for team show
+  team send [-w WS] TARGET CONTENT...      Dispatch a task to a worker alias or all (orchestrator only)
+  team reply [-w WS] CONTENT...             Report to the orchestrator (worker only)
+  team status [-w WS] [TARGET]             Show status for all members or one alias
+  team result [-w WS] TARGET               Capture one member's current pane content
   api-guide                                Print full HTTP API reference
   help                                     Show this usage
 
@@ -308,6 +423,17 @@ const main = async () => {
         case 'close': return cmdTabClose(rest);
         case 'browser': return cmdTabBrowser(rest);
         default: die(`unknown tab command: ${sub || '(none)'}. Run 'purplemux help' for usage.`);
+      }
+      break;
+    case 'team':
+      switch (sub) {
+        case 'show':
+        case 'members': return cmdTeamShow(rest);
+        case 'send': return cmdTeamSend(rest);
+        case 'reply': return cmdTeamReply(rest);
+        case 'status': return cmdTeamStatus(rest);
+        case 'result': return cmdTeamResult(rest);
+        default: die(`unknown team command: ${sub || '(none)'}. Run 'purplemux help' for usage.`);
       }
       break;
     case 'api-guide':

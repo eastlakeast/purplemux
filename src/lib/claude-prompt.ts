@@ -33,6 +33,21 @@ purplemux tab result -w ${ws.id} TAB_ID               # capture current pane con
 purplemux tab close -w ${ws.id} TAB_ID                # close a tab
 \`\`\`
 
+If this workspace belongs to an enabled group session team, these commands
+automatically identify the current workspace and tab:
+
+\`\`\`bash
+purplemux team show                         # members, aliases, and your role
+purplemux team send TARGET CONTENT...       # orchestrator: dispatch to an alias or all
+purplemux team status [TARGET]              # inspect member status
+purplemux team result TARGET                # capture a member's current pane
+purplemux team reply CONTENT...             # worker: report to the orchestrator
+\`\`\`
+
+Use team aliases instead of provider session IDs. Team tasks may arrive while
+you are busy and be queued as normal purplemux input. Workers should use
+\`purplemux team reply\` for completion reports, blockers, and questions.
+
 For the full HTTP API reference (including endpoint paths and payloads),
 run:
 

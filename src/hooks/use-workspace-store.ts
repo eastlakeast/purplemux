@@ -2,13 +2,38 @@ import { create } from 'zustand';
 import { toast } from 'sonner';
 import { t } from '@/lib/i18n';
 import { getVisuallyOrderedWorkspaces, normalizeWorkspaceSidebarOrder } from '@/lib/workspace-order';
-import type { IWorkspace, IWorkspaceGroup, TPanelType, TWorkspaceSidebarItem } from '@/types/terminal';
+import type {
+  IWorkspace,
+  IWorkspaceGroup,
+  IWorkspaceTeamConfig,
+  TPanelType,
+  TWorkspaceSidebarItem,
+} from '@/types/terminal';
 
 const reorderToVisual = (
   workspaces: IWorkspace[],
   groups: IWorkspaceGroup[],
   sidebarOrder: TWorkspaceSidebarItem[],
 ): IWorkspace[] => getVisuallyOrderedWorkspaces(workspaces, groups, sidebarOrder);
+
+const removeWorkspaceFromClientTeam = (
+  groups: IWorkspaceGroup[],
+  groupId: string | null | undefined,
+  workspaceId: string,
+): IWorkspaceGroup[] => groups.map((group) => {
+  if (group.id !== groupId || !group.team) return group;
+  if (group.team.orchestrator.workspaceId === workspaceId) {
+    const withoutTeam = { ...group };
+    delete withoutTeam.team;
+    return withoutTeam;
+  }
+  if (!group.team.workerTabOverrides?.[workspaceId]) return group;
+  const workerTabOverrides = { ...group.team.workerTabOverrides };
+  delete workerTabOverrides[workspaceId];
+  const team: IWorkspaceTeamConfig = { ...group.team, workerTabOverrides };
+  if (Object.keys(workerTabOverrides).length === 0) delete team.workerTabOverrides;
+  return { ...group, team };
+});
 
 interface IValidateResponse {
   valid: boolean;
@@ -53,6 +78,7 @@ interface IWorkspaceState {
   moveWorkspaceToGroup: (workspaceId: string, groupId: string | null) => Promise<boolean>;
   createGroup: (name?: string) => Promise<IWorkspaceGroup | null>;
   renameGroup: (groupId: string, name: string) => Promise<boolean>;
+  updateGroupTeam: (groupId: string, team: IWorkspaceTeamConfig | null) => Promise<boolean>;
   ungroupGroup: (groupId: string) => Promise<boolean>;
   toggleGroupCollapsed: (groupId: string) => void;
   toggleSidebar: () => void;
@@ -357,10 +383,19 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
   },
 
   reorderWorkspaces: (workspaces, sidebarOrder) => {
-    const normalizedSidebarOrder = normalizeWorkspaceSidebarOrder(workspaces, get().groups, sidebarOrder);
-    const list = reorderToVisual(workspaces, get().groups, normalizedSidebarOrder);
+    const current = get();
+    let groups = current.groups;
+    for (const workspace of workspaces) {
+      const previousGroupId = current.workspaces.find((candidate) => candidate.id === workspace.id)?.groupId ?? null;
+      const nextGroupId = workspace.groupId ?? null;
+      if (previousGroupId !== nextGroupId) {
+        groups = removeWorkspaceFromClientTeam(groups, previousGroupId, workspace.id);
+      }
+    }
+    const normalizedSidebarOrder = normalizeWorkspaceSidebarOrder(workspaces, groups, sidebarOrder);
+    const list = reorderToVisual(workspaces, groups, normalizedSidebarOrder);
     bumpMutationFence();
-    set({ workspaces: list, sidebarOrder: normalizedSidebarOrder });
+    set({ workspaces: list, groups, sidebarOrder: normalizedSidebarOrder });
 
     fetch('/api/workspace/reorder', {
       method: 'PATCH',
@@ -474,6 +509,37 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
         groups: state.groups.map((g) => (g.id === groupId ? { ...g, name: previousName } : g)),
       }));
       toast.error(t('workspace', 'renameFailed'));
+      return false;
+    }
+  },
+
+  updateGroupTeam: async (groupId, team) => {
+    const previous = get().groups.find((group) => group.id === groupId)?.team;
+    set((state) => ({
+      groups: state.groups.map((group) =>
+        group.id === groupId
+          ? { ...group, ...(team ? { team } : { team: undefined }) }
+          : group,
+      ),
+    }));
+    try {
+      const res = await fetch(`/api/workspace/group/${groupId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team }),
+      });
+      if (!res.ok) throw new Error();
+      bumpMutationFence();
+      return true;
+    } catch {
+      set((state) => ({
+        groups: state.groups.map((group) =>
+          group.id === groupId
+            ? { ...group, ...(previous ? { team: previous } : { team: undefined }) }
+            : group,
+        ),
+      }));
+      toast.error(t('sidebar', 'teamSaveFailed'));
       return false;
     }
   },

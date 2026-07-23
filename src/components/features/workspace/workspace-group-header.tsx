@@ -1,5 +1,5 @@
 import { useCallback, useState, memo } from 'react';
-import { ChevronDown, ChevronRight, MoreHorizontal, Pencil, FolderMinus } from 'lucide-react';
+import { ChevronDown, ChevronRight, MoreHorizontal, Pencil, FolderMinus, Network } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import {
@@ -19,6 +19,7 @@ interface IWorkspaceGroupHeaderProps {
   onToggle: (groupId: string) => void;
   onRename: (groupId: string, name: string) => void;
   onUngroup: (groupId: string) => void;
+  onConfigureTeam: (groupId: string) => void;
 }
 
 const WorkspaceGroupHeader = ({
@@ -27,6 +28,7 @@ const WorkspaceGroupHeader = ({
   onToggle,
   onRename,
   onUngroup,
+  onConfigureTeam,
 }: IWorkspaceGroupHeaderProps) => {
   const t = useTranslations('sidebar');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -51,6 +53,12 @@ const WorkspaceGroupHeader = ({
     setMenuOpen(false);
     onUngroup(group.id);
   }, [group.id, onUngroup]);
+
+  const handleConfigureTeam = useCallback((e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    onConfigureTeam(group.id);
+  }, [group.id, onConfigureTeam]);
 
   const Icon = group.collapsed ? ChevronRight : ChevronDown;
 
@@ -77,6 +85,12 @@ const WorkspaceGroupHeader = ({
             {group.name} <span className="text-muted-foreground/60">({count})</span>
           </span>
         )}
+        {group.team && (
+          <Network
+            className="h-3 w-3 shrink-0 text-[var(--focus-indicator)]"
+            aria-label={t('sessionTeam')}
+          />
+        )}
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
           <PopoverTrigger
             render={
@@ -95,6 +109,13 @@ const WorkspaceGroupHeader = ({
           <PopoverContent side="right" align="start" className="w-44 gap-0 p-1">
             <button
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
+              onClick={handleConfigureTeam}
+            >
+              <Network className="h-3.5 w-3.5" />
+              {t('sessionTeam')}
+            </button>
+            <button
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
               onClick={handleRenameAction}
             >
               <Pencil className="h-3.5 w-3.5" />
@@ -111,6 +132,11 @@ const WorkspaceGroupHeader = ({
         </Popover>
       </ContextMenuTrigger>
       <ContextMenuContent>
+        <ContextMenuItem onClick={handleConfigureTeam}>
+          <Network className="mr-2 h-3.5 w-3.5" />
+          {t('sessionTeam')}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
         <ContextMenuItem onClick={handleRenameAction}>
           <Pencil className="mr-2 h-3.5 w-3.5" />
           {t('renameGroup')}

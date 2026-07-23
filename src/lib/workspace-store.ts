@@ -22,6 +22,7 @@ import { normalizeWorkspaceSidebarOrder } from '@/lib/workspace-order';
 import type {
   IWorkspace,
   IWorkspaceGroup,
+  IWorkspaceTeamConfig,
   IWorkspacesData,
   ILayoutData,
   TWorkspaceSidebarItem,
@@ -99,6 +100,20 @@ const normalizeWorkspaceOrder = (data: IWorkspacesData): void => {
   const groups = ensureGroups(data);
   data.sidebarOrder = normalizeWorkspaceSidebarOrder(data.workspaces, groups, data.sidebarOrder);
   data.workspaces = getVisuallyOrderedWorkspaces(data.workspaces, groups, data.sidebarOrder);
+};
+
+const removeWorkspaceFromGroupTeam = (
+  groups: IWorkspaceGroup[],
+  groupId: string | null | undefined,
+  workspaceId: string,
+): void => {
+  if (!groupId) return;
+  const group = groups.find((candidate) => candidate.id === groupId);
+  if (group?.team?.orchestrator.workspaceId === workspaceId) {
+    delete group.team;
+  } else if (group?.team?.workerTabOverrides?.[workspaceId]) {
+    delete group.team.workerTabOverrides[workspaceId];
+  }
 };
 
 const readWorkspacesFile = async (): Promise<IWorkspacesData | null> => {
@@ -376,6 +391,7 @@ export const deleteWorkspace = async (workspaceId: string): Promise<boolean> =>
     } catch {}
 
     data.workspaces.splice(idx, 1);
+    removeWorkspaceFromGroupTeam(data.groups ?? [], ws.groupId, workspaceId);
 
     await writeWorkspacesFile(data);
     log.info(`Deleted: ${workspaceId} (${ws.name})`);
@@ -443,7 +459,12 @@ export const reorderWorkspaces = async (
       const ws = byId.get(item.id);
       if (!ws) return false;
       if (item.groupId !== undefined) {
-        ws.groupId = item.groupId && validGroupIds.has(item.groupId) ? item.groupId : null;
+        const previousGroupId = ws.groupId ?? null;
+        const nextGroupId = item.groupId && validGroupIds.has(item.groupId) ? item.groupId : null;
+        if (previousGroupId !== nextGroupId) {
+          removeWorkspaceFromGroupTeam(data.groups ?? [], previousGroupId, ws.id);
+          ws.groupId = nextGroupId;
+        }
       }
       reordered.push(ws);
     }
@@ -501,6 +522,24 @@ export const setGroupCollapsed = async (groupId: string, collapsed: boolean): Pr
     group.collapsed = collapsed;
     await writeWorkspacesFile(data);
     return true;
+  });
+
+export const setGroupTeam = async (
+  groupId: string,
+  team: IWorkspaceTeamConfig | null,
+): Promise<IWorkspaceGroup | null> =>
+  withLock(async () => {
+    const data = await readWorkspacesFile();
+    if (!data) return null;
+    const group = (data.groups ?? []).find((candidate) => candidate.id === groupId);
+    if (!group) return null;
+    if (team) {
+      group.team = team;
+    } else {
+      delete group.team;
+    }
+    await writeWorkspacesFile(data);
+    return { ...group };
   });
 
 export const ungroupGroup = async (groupId: string): Promise<boolean> =>
@@ -562,6 +601,7 @@ export const setWorkspaceGroup = async (workspaceId: string, groupId: string | n
     const currentIndex = data.workspaces.findIndex((workspace) => workspace.id === workspaceId);
     data.workspaces.splice(currentIndex, 1);
     ws.groupId = nextGroupId;
+    removeWorkspaceFromGroupTeam(data.groups ?? [], previousGroupId, workspaceId);
     if (nextGroupId) {
       const lastMemberIndex = data.workspaces.findLastIndex((workspace) => workspace.groupId === nextGroupId);
       data.workspaces.splice(lastMemberIndex + 1, 0, ws);

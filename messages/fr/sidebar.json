@@ -16,5 +16,14 @@
   "removeFromGroup": "Retirer du groupe",
   "ungrouped": "Non groupé",
   "defaultGroupName": "Nouveau groupe",
-  "emptyGroup": "(vide)"
+  "emptyGroup": "(vide)",
+  "sessionTeam": "Équipe de sessions",
+  "teamOrchestrator": "Orchestrateur",
+  "teamWorkers": "Sessions de travail",
+  "teamAutomatic": "Automatique",
+  "teamUnavailable": "Indisponible",
+  "teamNoAgentTabs": "Ce groupe ne contient aucun onglet Claude Code ou Codex.",
+  "teamDisable": "Désactiver l’équipe",
+  "teamSaved": "Équipe de sessions enregistrée",
+  "teamSaveFailed": "Impossible d’enregistrer l’équipe de sessions"
 }

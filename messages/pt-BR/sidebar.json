@@ -16,5 +16,14 @@
   "removeFromGroup": "Remover do grupo",
   "ungrouped": "Sem grupo",
   "defaultGroupName": "Novo grupo",
-  "emptyGroup": "(vazio)"
+  "emptyGroup": "(vazio)",
+  "sessionTeam": "Equipe de sessões",
+  "teamOrchestrator": "Orquestrador",
+  "teamWorkers": "Sessões de trabalho",
+  "teamAutomatic": "Automático",
+  "teamUnavailable": "Indisponível",
+  "teamNoAgentTabs": "Este grupo não possui abas do Claude Code ou Codex.",
+  "teamDisable": "Desativar equipe",
+  "teamSaved": "Equipe de sessões salva",
+  "teamSaveFailed": "Não foi possível salvar a equipe de sessões"
 }

@@ -81,10 +81,21 @@ export interface IWorkspace {
   groupId?: string | null;
 }
 
+export interface IWorkspaceTeamTabRef {
+  workspaceId: string;
+  tabId: string;
+}
+
+export interface IWorkspaceTeamConfig {
+  orchestrator: IWorkspaceTeamTabRef;
+  workerTabOverrides?: Record<string, string>;
+}
+
 export interface IWorkspaceGroup {
   id: string;
   name: string;
   collapsed?: boolean;
+  team?: IWorkspaceTeamConfig;
 }
 
 export type TWorkspaceSidebarItem =

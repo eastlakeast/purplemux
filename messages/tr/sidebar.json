@@ -16,5 +16,14 @@
   "removeFromGroup": "Gruptan çıkar",
   "ungrouped": "Gruplanmamış",
   "defaultGroupName": "Yeni Grup",
-  "emptyGroup": "(boş)"
+  "emptyGroup": "(boş)",
+  "sessionTeam": "Oturum ekibi",
+  "teamOrchestrator": "Orkestratör",
+  "teamWorkers": "Çalışan oturumları",
+  "teamAutomatic": "Otomatik",
+  "teamUnavailable": "Kullanılamıyor",
+  "teamNoAgentTabs": "Bu grupta Claude Code veya Codex sekmesi yok.",
+  "teamDisable": "Ekibi devre dışı bırak",
+  "teamSaved": "Oturum ekibi kaydedildi",
+  "teamSaveFailed": "Oturum ekibi kaydedilemedi"
 }

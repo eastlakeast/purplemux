@@ -16,5 +16,14 @@
   "removeFromGroup": "從群組移除",
   "ungrouped": "未分群",
   "defaultGroupName": "新增群組",
-  "emptyGroup": "（空）"
+  "emptyGroup": "（空）",
+  "sessionTeam": "工作階段團隊",
+  "teamOrchestrator": "協調器",
+  "teamWorkers": "工作階段",
+  "teamAutomatic": "自動",
+  "teamUnavailable": "無法使用",
+  "teamNoAgentTabs": "此群組中沒有 Claude Code 或 Codex 分頁。",
+  "teamDisable": "停用團隊",
+  "teamSaved": "已儲存工作階段團隊",
+  "teamSaveFailed": "無法儲存工作階段團隊"
 }

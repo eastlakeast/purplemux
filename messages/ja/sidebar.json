@@ -16,5 +16,14 @@
   "removeFromGroup": "グループから外す",
   "ungrouped": "未グループ化",
   "defaultGroupName": "新規グループ",
-  "emptyGroup": "（空）"
+  "emptyGroup": "（空）",
+  "sessionTeam": "セッションチーム",
+  "teamOrchestrator": "オーケストレーター",
+  "teamWorkers": "ワーカーセッション",
+  "teamAutomatic": "自動",
+  "teamUnavailable": "利用不可",
+  "teamNoAgentTabs": "このグループには Claude Code または Codex タブがありません。",
+  "teamDisable": "チームを無効化",
+  "teamSaved": "セッションチームを保存しました",
+  "teamSaveFailed": "セッションチームを保存できませんでした"
 }
