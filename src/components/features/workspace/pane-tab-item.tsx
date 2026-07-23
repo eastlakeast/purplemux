@@ -8,6 +8,7 @@ import ProcessIcon from '@/components/icons/process-icon';
 import { cn } from '@/lib/utils';
 import type { ITab } from '@/types/terminal';
 import TabStatusIndicator from '@/components/features/workspace/tab-status-indicator';
+import OrchestratorIndicator from '@/components/features/workspace/orchestrator-indicator';
 
 interface IPaneTabItemProps {
   tab: ITab;
@@ -16,6 +17,7 @@ interface IPaneTabItemProps {
   dropSide: 'left' | 'right' | null;
   displayTitle?: string;
   currentProcess?: string;
+  isOrchestrator?: boolean;
   modeSwitcher?: ReactNode;
   onSwitch: () => void;
   onDelete: () => void;
@@ -34,6 +36,7 @@ const PaneTabItem = ({
   dropSide,
   displayTitle,
   currentProcess,
+  isOrchestrator = false,
   modeSwitcher,
   onSwitch,
   onDelete,
@@ -116,6 +119,7 @@ const PaneTabItem = ({
       ) : (
         <>
           <TabStatusIndicator tabId={tab.id} panelType={tab.panelType} />
+          {isOrchestrator && <OrchestratorIndicator side="bottom" className="h-3 w-3" />}
           {tab.panelType === 'claude-code' ? (
             <ClaudeCodeIcon className="mx-0.5 h-3 w-3 shrink-0" />
           ) : tab.panelType === 'codex-cli' ? (

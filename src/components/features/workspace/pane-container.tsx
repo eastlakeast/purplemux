@@ -45,6 +45,8 @@ import useTerminalTheme from '@/hooks/use-terminal-theme';
 import useTabStore, { getInitialTabStateFromLayoutTab, selectSessionView, isCliIdle } from '@/hooks/use-tab-store';
 import { dismissTab as dismissStatusTab } from '@/hooks/use-agent-status';
 import type { IAgentSessionEntry } from '@/hooks/use-agent-sessions';
+import useWorkspaceStore from '@/hooks/use-workspace-store';
+import { getOrchestratorTabId } from '@/lib/workspace-team-role';
 import {
   applyAgentCheckResult,
   isAgentPanelType,
@@ -111,6 +113,9 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
   const isFocused = useLayoutStore((s) => s.layout?.activePaneId === paneId);
   const paneCount = useLayoutStore((s) => s.paneCount);
   const isSplitting = useLayoutStore((s) => s.isSplitting);
+  const orchestratorTabId = useWorkspaceStore((state) =>
+    getOrchestratorTabId(state.groups, state.activeWorkspaceId),
+  );
 
   const switchTabInPane = useLayoutStore((s) => s.switchTabInPane);
   const createTabInPane = useLayoutStore((s) => s.createTabInPane);
@@ -1143,6 +1148,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
         activeTabId={activeTabId}
         tabTitles={tabTitles}
         tabProcesses={tabProcesses}
+        orchestratorTabId={orchestratorTabId}
         isLoading={false}
         error={null}
         isCreating={isCreating}
