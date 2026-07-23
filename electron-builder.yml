@@ -37,6 +37,7 @@ dmg:
       path: /Applications
 
 files:
+  - bin/**/*
   - dist-electron/**/*
   - dist/**/*
   - .next/standalone/**/*
