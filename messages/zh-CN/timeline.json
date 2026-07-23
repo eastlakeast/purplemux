@@ -33,6 +33,8 @@
   "searchClose": "关闭搜索",
   "askSubmit": "提交",
   "askMultiSelectHint": "空格键选择，回车键提交",
+  "askCustomAnswerLabel": "自定义回答",
+  "askCustomAnswerPlaceholder": "输入你的回答...",
   "taskProgress": "任务进度",
   "toolUsageCount": "{count}次工具使用",
   "diffShow": "显示差异",

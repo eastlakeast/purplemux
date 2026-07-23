@@ -33,6 +33,8 @@
   "searchClose": "검색 닫기",
   "askSubmit": "제출",
   "askMultiSelectHint": "스페이스로 선택, 엔터로 제출",
+  "askCustomAnswerLabel": "직접 입력",
+  "askCustomAnswerPlaceholder": "답변을 입력하세요...",
   "taskProgress": "Task 진행 상황",
   "toolUsageCount": "도구 {count}회 사용",
   "diffShow": "diff 보기",

@@ -33,6 +33,8 @@
   "searchClose": "Cerrar búsqueda",
   "askSubmit": "Enviar",
   "askMultiSelectHint": "Espacio para seleccionar, Enter para enviar",
+  "askCustomAnswerLabel": "Respuesta personalizada",
+  "askCustomAnswerPlaceholder": "Escribe tu respuesta...",
   "taskProgress": "Progreso de la tarea",
   "toolUsageCount": "{count} usos de herramientas",
   "diffShow": "Mostrar diferencias",

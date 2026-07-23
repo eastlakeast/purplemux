@@ -33,6 +33,8 @@
   "searchClose": "Close search",
   "askSubmit": "Submit",
   "askMultiSelectHint": "Space to select, Enter to submit",
+  "askCustomAnswerLabel": "Custom answer",
+  "askCustomAnswerPlaceholder": "Type your answer...",
   "taskProgress": "Task progress",
   "toolUsageCount": "{count} tool uses",
   "diffShow": "Show diff",

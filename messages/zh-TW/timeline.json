@@ -33,6 +33,8 @@
   "searchClose": "關閉搜尋",
   "askSubmit": "提交",
   "askMultiSelectHint": "空白鍵選擇，Enter 提交",
+  "askCustomAnswerLabel": "自訂回答",
+  "askCustomAnswerPlaceholder": "輸入你的回答...",
   "taskProgress": "任務進度",
   "toolUsageCount": "使用了 {count} 個工具",
   "diffShow": "顯示差異",

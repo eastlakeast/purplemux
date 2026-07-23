@@ -33,6 +33,8 @@
   "searchClose": "Закрыть поиск",
   "askSubmit": "Отправить",
   "askMultiSelectHint": "Пробел — выбрать, Enter — отправить",
+  "askCustomAnswerLabel": "Свой ответ",
+  "askCustomAnswerPlaceholder": "Введите ответ...",
   "taskProgress": "Прогресс задачи",
   "toolUsageCount": "{count} вызовов инструментов",
   "diffShow": "Показать diff",

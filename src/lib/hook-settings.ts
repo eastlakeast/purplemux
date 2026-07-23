@@ -24,7 +24,26 @@ TOKEN_FILE="$HOME/.purplemux/cli-token"
 [ -f "$TOKEN_FILE" ] || exit 0
 PORT=$(cat "$PORT_FILE")
 TOKEN=$(cat "$TOKEN_FILE")
-SESSION=$(tmux display-message -p '#{session_name}' 2>/dev/null) || SESSION=""
+
+resolve_tmux_session() {
+  SESSION=$(tmux display-message -p '#{session_name}' 2>/dev/null || true)
+  if [ -n "$SESSION" ]; then
+    printf '%s\\n' "$SESSION"
+    return
+  fi
+
+  PID=$$
+  while [ -n "$PID" ] && [ "$PID" != "1" ]; do
+    SESSION=$(tmux -L purple list-panes -a -F '#{session_name} #{pane_pid}' 2>/dev/null | awk -v pid="$PID" '$2 == pid { print $1; exit }')
+    if [ -n "$SESSION" ]; then
+      printf '%s\\n' "$SESSION"
+      return
+    fi
+    PID=$(ps -o ppid= -p "$PID" 2>/dev/null | tr -d ' ')
+  done
+}
+
+SESSION=$(resolve_tmux_session)
 
 if [ "$EVENT" = "pre-tool-use" ] || [ "$EVENT" = "post-tool-use" ]; then
   curl -sS -X POST -o /dev/null \\
@@ -58,7 +77,26 @@ TOKEN_FILE="$HOME/.purplemux/cli-token"
 [ -f "$TOKEN_FILE" ] || exit 0
 PORT=$(cat "$PORT_FILE")
 TOKEN=$(cat "$TOKEN_FILE")
-SESSION=$(tmux display-message -p '#{session_name}' 2>/dev/null) || SESSION=""
+
+resolve_tmux_session() {
+  SESSION=$(tmux display-message -p '#{session_name}' 2>/dev/null || true)
+  if [ -n "$SESSION" ]; then
+    printf '%s\\n' "$SESSION"
+    return
+  fi
+
+  PID=$$
+  while [ -n "$PID" ] && [ "$PID" != "1" ]; do
+    SESSION=$(tmux -L purple list-panes -a -F '#{session_name} #{pane_pid}' 2>/dev/null | awk -v pid="$PID" '$2 == pid { print $1; exit }')
+    if [ -n "$SESSION" ]; then
+      printf '%s\\n' "$SESSION"
+      return
+    fi
+    PID=$(ps -o ppid= -p "$PID" 2>/dev/null | tr -d ' ')
+  done
+}
+
+SESSION=$(resolve_tmux_session)
 
 curl -sS -X POST -o /dev/null \\
   -H "x-pmux-token: \${TOKEN}" \\

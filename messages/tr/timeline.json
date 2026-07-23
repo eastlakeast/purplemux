@@ -33,6 +33,8 @@
   "searchClose": "Aramayı kapat",
   "askSubmit": "Gönder",
   "askMultiSelectHint": "Seçmek için Boşluk, göndermek için Enter",
+  "askCustomAnswerLabel": "Özel yanıt",
+  "askCustomAnswerPlaceholder": "Yanıtınızı yazın...",
   "taskProgress": "Görev ilerlemesi",
   "toolUsageCount": "{count} araç kullanımı",
   "diffShow": "Farkı göster",

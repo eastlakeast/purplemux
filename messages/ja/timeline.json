@@ -33,6 +33,8 @@
   "searchClose": "検索を閉じる",
   "askSubmit": "送信",
   "askMultiSelectHint": "スペースで選択、Enterで送信",
+  "askCustomAnswerLabel": "直接入力",
+  "askCustomAnswerPlaceholder": "回答を入力...",
   "taskProgress": "タスク進捗",
   "toolUsageCount": "{count}回のツール使用",
   "diffShow": "差分を表示",

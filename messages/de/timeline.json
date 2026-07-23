@@ -33,6 +33,8 @@
   "searchClose": "Suche schließen",
   "askSubmit": "Senden",
   "askMultiSelectHint": "Leertaste zum Auswählen, Enter zum Senden",
+  "askCustomAnswerLabel": "Eigene Antwort",
+  "askCustomAnswerPlaceholder": "Antwort eingeben...",
   "taskProgress": "Aufgabenfortschritt",
   "toolUsageCount": "{count} Tool-Nutzungen",
   "diffShow": "Diff anzeigen",
