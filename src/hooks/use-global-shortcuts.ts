@@ -4,6 +4,7 @@ import useWorkspaceStore from '@/hooks/use-workspace-store';
 import { useSelectWorkspace } from '@/hooks/use-sidebar-actions';
 import useKeybindingsStore from '@/hooks/use-keybindings-store';
 import useBoundHotkey from '@/hooks/use-bound-hotkey';
+import { getVisibleOrderedWorkspaces } from '@/lib/workspace-order';
 
 const isEditableTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false;
@@ -22,14 +23,15 @@ const useGlobalShortcuts = () => {
   useBoundHotkey(
     'workspace.switch',
     (event) => {
-      const { workspaces } = useWorkspaceStore.getState();
+      const { workspaces, groups, sidebarOrder } = useWorkspaceStore.getState();
+      const visibleWorkspaces = getVisibleOrderedWorkspaces(workspaces, groups, sidebarOrder);
       const digit = parseInt(event.code.replace('Digit', ''), 10);
       if (isNaN(digit) || digit < 1 || digit > 9) return;
 
       const workspace =
         digit === 9
-          ? workspaces[workspaces.length - 1]
-          : workspaces[digit - 1];
+          ? visibleWorkspaces[visibleWorkspaces.length - 1]
+          : visibleWorkspaces[digit - 1];
       if (workspace) {
         selectWorkspace(workspace.id);
       }

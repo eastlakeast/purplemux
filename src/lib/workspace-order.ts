@@ -171,6 +171,31 @@ export const getVisuallyOrderedWorkspaces = (
   return ordered;
 };
 
+export const getVisibleOrderedWorkspaces = (
+  workspaces: IWorkspace[],
+  groups: IWorkspaceGroup[],
+  sidebarOrder?: TWorkspaceSidebarItem[],
+): IWorkspace[] => {
+  const hierarchy = normalizeWorkspaceHierarchy(workspaces, groups, sidebarOrder);
+  const workspaceById = new Map(hierarchy.workspaces.map((workspace) => [workspace.id, workspace]));
+  const groupById = new Map(hierarchy.groups.map((group) => [group.id, group]));
+  const ordered: IWorkspace[] = [];
+
+  const visit = (items: TWorkspaceSidebarItem[]) => {
+    for (const item of items) {
+      if (item.type === 'workspace') {
+        const workspace = workspaceById.get(item.id);
+        if (workspace) ordered.push(workspace);
+        continue;
+      }
+      const group = groupById.get(item.id);
+      if (group && !group.collapsed) visit(group.childOrder ?? []);
+    }
+  };
+  visit(hierarchy.sidebarOrder);
+  return ordered;
+};
+
 const getContainerOrder = (
   groups: IWorkspaceGroup[],
   sidebarOrder: TWorkspaceSidebarItem[],
