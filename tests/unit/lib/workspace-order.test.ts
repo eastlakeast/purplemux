@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getVisuallyOrderedWorkspaces,
+  getVisibleOrderedWorkspaces,
   moveWorkspaceHierarchyItem,
   normalizeWorkspaceHierarchy,
   normalizeWorkspaceSidebarOrder,
@@ -88,6 +89,48 @@ describe('workspace sidebar order', () => {
       hierarchy.groups,
       hierarchy.sidebarOrder,
     ).map((workspace) => workspace.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('excludes workspaces inside collapsed groups from the visible order', () => {
+    const collapsedGroups: IWorkspaceGroup[] = [
+      { id: 'g1', name: 'collapsed', collapsed: true },
+      { id: 'g2', name: 'expanded' },
+    ];
+    const orderedWorkspaces: IWorkspace[] = [
+      { id: 'a', name: 'A', directories: ['/a'] },
+      { id: 'b', name: 'B', directories: ['/b'], groupId: 'g1' },
+      { id: 'c', name: 'C', directories: ['/c'], groupId: 'g2' },
+      { id: 'd', name: 'D', directories: ['/d'] },
+    ];
+    const sidebarOrder = [
+      { type: 'workspace' as const, id: 'a' },
+      { type: 'group' as const, id: 'g1' },
+      { type: 'group' as const, id: 'g2' },
+      { type: 'workspace' as const, id: 'd' },
+    ];
+
+    expect(getVisibleOrderedWorkspaces(
+      orderedWorkspaces,
+      collapsedGroups,
+      sidebarOrder,
+    ).map((workspace) => workspace.id)).toEqual(['a', 'c', 'd']);
+  });
+
+  it('excludes an entire nested subtree when an ancestor group is collapsed', () => {
+    const nestedGroups: IWorkspaceGroup[] = [
+      { id: 'parent', name: 'parent', collapsed: true },
+      { id: 'child', name: 'child', parentId: 'parent' },
+    ];
+    const nestedWorkspaces: IWorkspace[] = [
+      { id: 'parent-ws', name: 'Parent', directories: ['/parent'], groupId: 'parent' },
+      { id: 'child-ws', name: 'Child', directories: ['/child'], groupId: 'child' },
+      { id: 'root-ws', name: 'Root', directories: ['/root'] },
+    ];
+
+    expect(getVisibleOrderedWorkspaces(
+      nestedWorkspaces,
+      nestedGroups,
+    ).map((workspace) => workspace.id)).toEqual(['root-ws']);
   });
 
   it('moves groups and workspaces between hierarchy levels and blocks cycles', () => {

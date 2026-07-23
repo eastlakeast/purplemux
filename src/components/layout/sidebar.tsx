@@ -57,6 +57,7 @@ import isElectron from '@/hooks/use-is-electron';
 import {
   getWorkspaceGroupDescendantIds,
   getWorkspaceGroupWorkspaceCount,
+  getVisibleOrderedWorkspaces,
   moveWorkspaceHierarchyItem,
   normalizeWorkspaceHierarchy,
 } from '@/lib/workspace-order';
@@ -400,9 +401,13 @@ const Sidebar = () => {
     () => new Map(hierarchy.groups.map((group) => [group.id, group])),
     [hierarchy.groups],
   );
-  const workspaceIndexById = useMemo(
-    () => new Map(workspaces.map((workspace, index) => [workspace.id, index])),
-    [workspaces],
+  const visibleWorkspaces = useMemo(
+    () => getVisibleOrderedWorkspaces(workspaces, groups, sidebarOrder),
+    [workspaces, groups, sidebarOrder],
+  );
+  const visibleWorkspaceIndexById = useMemo(
+    () => new Map(visibleWorkspaces.map((workspace, index) => [workspace.id, index])),
+    [visibleWorkspaces],
   );
 
   const renderDropZone = (parentGroupId: string | null, index: number) => (
@@ -424,7 +429,7 @@ const Sidebar = () => {
     parentGroupId: string | null,
     index: number,
   ) => {
-    const flatIndex = workspaceIndexById.get(workspace.id) ?? -1;
+    const visibleIndex = visibleWorkspaceIndexById.get(workspace.id) ?? -1;
     return (
       <div
         draggable
@@ -442,7 +447,11 @@ const Sidebar = () => {
           isActive={workspace.id === activeWorkspaceId && router.pathname === '/' && !activeWebviewId}
           isDeleting={deletingIds.has(workspace.id)}
           isOrchestrator={isOrchestratorWorkspace(groups, workspace.id)}
-          shortcutLabel={flatIndex < 8 ? `⌘${flatIndex + 1}` : flatIndex === workspaces.length - 1 ? '⌘9' : undefined}
+          shortcutLabel={visibleIndex >= 0 && visibleIndex < 8
+            ? `⌘${visibleIndex + 1}`
+            : visibleIndex === visibleWorkspaces.length - 1
+              ? '⌘9'
+              : undefined}
           showShortcut={showShortcuts}
           tabs={workspaceTabs[workspace.id]}
           onSelect={selectWorkspace}
