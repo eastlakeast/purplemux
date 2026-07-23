@@ -15,7 +15,9 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -198,17 +200,54 @@ const WorkspaceGroupHeader = ({
           </PopoverContent>
         </Popover>
       </ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent className="w-44">
         <ContextMenuItem onClick={handleConfigureTeam}>
           <Network className="mr-2 h-3.5 w-3.5" />
           {t('sessionTeam')}
         </ContextMenuItem>
-        <ContextMenuSeparator />
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <Palette className="mr-2 h-3.5 w-3.5" />
+            <span className="flex-1">{t('groupColor')}</span>
+            <span
+              className="h-3 w-3 rounded-sm border border-foreground/20"
+              style={{
+                backgroundColor: WORKSPACE_GROUP_COLORS.find(
+                  (color) => color.id === (group.color ?? 'neutral'),
+                )?.css,
+              }}
+            />
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-auto p-2">
+            <div className="grid grid-cols-4 gap-1.5">
+              {WORKSPACE_GROUP_COLORS.map((color) => {
+                const selected = (group.color ?? 'neutral') === color.id;
+                return (
+                  <ContextMenuItem
+                    key={color.id}
+                    className={cn(
+                      'flex h-6 w-6 items-center justify-center rounded border border-border p-0',
+                      selected && 'ring-1 ring-[var(--focus-indicator)]',
+                    )}
+                    style={{ backgroundColor: color.css }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onColorChange(group.id, color.id);
+                    }}
+                    aria-label={t('groupColor')}
+                    title={t('groupColor')}
+                  >
+                    {selected && <Check className="h-3.5 w-3.5 text-white drop-shadow" />}
+                  </ContextMenuItem>
+                );
+              })}
+            </div>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
         <ContextMenuItem onClick={handleRenameAction}>
           <Pencil className="mr-2 h-3.5 w-3.5" />
           {t('renameGroup')}
         </ContextMenuItem>
-        <ContextMenuSeparator />
         <ContextMenuItem onClick={handleUngroupAction}>
           <FolderMinus className="mr-2 h-3.5 w-3.5" />
           {t('ungroup')}
