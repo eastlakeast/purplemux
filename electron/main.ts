@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { pickTaglines } from './splash-taglines';
 import { initBrowserBridge } from './browser-bridge';
+import { localFileUrlFromHref } from '../src/lib/local-file-links';
 
 const isDev = process.env.NODE_ENV === 'development';
 const devUrl = process.env.ELECTRON_DEV_URL;
@@ -672,7 +673,7 @@ const createWindow = (url: string): BrowserWindow => {
   });
 
   win.webContents.setWindowOpenHandler(({ url: linkUrl }) => {
-    shell.openExternal(linkUrl);
+    shell.openExternal(localFileUrlFromHref(linkUrl) ?? linkUrl);
     return { action: 'deny' };
   });
 
@@ -856,6 +857,11 @@ const BLOCKED_SCHEME = /^(javascript|data|vbscript|blob|file|about|view-source):
 
 ipcMain.handle('open-external', (_event, url: string) => {
   if (typeof url !== 'string') return;
+  const localFileUrl = localFileUrlFromHref(url);
+  if (localFileUrl) {
+    shell.openExternal(localFileUrl);
+    return;
+  }
   if (!VALID_URI_SCHEME.test(url) || BLOCKED_SCHEME.test(url)) return;
   shell.openExternal(url);
 });

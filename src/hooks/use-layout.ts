@@ -13,6 +13,7 @@ import { resolveTabNameForPanelTypeChange } from '@/lib/tab-name';
 import {
   collectPanes,
   collectAllTabs,
+  findAdjacentPaneId,
   findPane,
   getFirstPaneId,
   removePaneWithFocus,
@@ -99,6 +100,7 @@ interface ILayoutState {
   updateRatio: (path: number[], ratio: number) => void;
   moveTab: (tabId: string, fromPaneId: string, toPaneId: string, toIndex: number) => void;
   createTabInPane: (paneId: string, panelType?: TPanelType, command?: string, resumeSessionId?: string) => Promise<ITab | null>;
+  openLocalFileViewer: (sourcePaneId: string, filePath: string) => Promise<void>;
   deleteTabInPane: (paneId: string, tabId: string) => Promise<void>;
   restartTabInPane: (paneId: string, tabId: string, command?: string) => Promise<boolean>;
   switchTabInPane: (paneId: string, tabId: string) => void;
@@ -481,6 +483,75 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
     } catch {
       toast.error(t('terminal', 'tabCreateFailed'));
       return null;
+    }
+  },
+
+  openLocalFileViewer: async (sourcePaneId, filePath) => {
+    const { layout, workspaceId, isSplitting } = get();
+    if (!layout || !workspaceId || isSplitting) return;
+
+    const { localFileName, localFilePathToViewerUrl } = await import('@/lib/local-file-links');
+    const webUrl = new URL(localFilePathToViewerUrl(filePath), window.location.origin).toString();
+    const name = localFileName(filePath);
+    const targetPaneId = findAdjacentPaneId(layout.root, sourcePaneId);
+
+    try {
+      if (targetPaneId) {
+        const res = await fetch(wsQuery(`/api/layout/pane/${targetPaneId}/tabs`, workspaceId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ panelType: 'web-browser', name, webUrl }),
+        });
+        if (!res.ok) throw new Error();
+        const newTab: ITab = await res.json();
+        applyPaneUpdate(set, get, targetPaneId, (pane) => ({
+          ...pane,
+          tabs: [...pane.tabs, newTab],
+          activeTabId: newTab.id,
+        }));
+        get().focusPane(targetPaneId);
+        void get().fetchLayout(undefined, true);
+        return;
+      }
+
+      if (collectPanes(layout.root).length >= 10) {
+        const res = await fetch(wsQuery(`/api/layout/pane/${sourcePaneId}/tabs`, workspaceId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ panelType: 'web-browser', name, webUrl }),
+        });
+        if (!res.ok) throw new Error();
+        const newTab: ITab = await res.json();
+        applyPaneUpdate(set, get, sourcePaneId, (pane) => ({
+          ...pane,
+          tabs: [...pane.tabs, newTab],
+          activeTabId: newTab.id,
+        }));
+        return;
+      }
+
+      set({ isSplitting: true, canSplit: false });
+      const res = await fetch(wsQuery('/api/layout/pane', workspaceId), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourcePaneId,
+          orientation: 'horizontal',
+          panelType: 'web-browser',
+          name,
+          webUrl,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const data: ILayoutData = await res.json();
+      applyLayout(set, get, data);
+    } catch {
+      toast.error(t('terminal', 'tabCreateFailed'));
+    } finally {
+      set((state) => ({
+        isSplitting: false,
+        canSplit: state.paneCount < 10,
+      }));
     }
   },
 
@@ -877,6 +948,7 @@ const useLayout = ({ workspaceId, onFetchError }: { workspaceId: string | null; 
     updateRatio: s.updateRatio,
     moveTab: s.moveTab,
     createTabInPane: s.createTabInPane,
+    openLocalFileViewer: s.openLocalFileViewer,
     deleteTabInPane: s.deleteTabInPane,
     restartTabInPane: s.restartTabInPane,
     switchTabInPane: s.switchTabInPane,

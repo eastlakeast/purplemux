@@ -359,6 +359,7 @@ const formatKeyLabel = (key: string): string => {
 
 let currentOverrides: Record<string, TKeybindingOverride> = {};
 let shortcutSet: Set<string> = new Set();
+let shortcutCodesSnapshot: readonly string[] = [];
 const resolvedCache: Map<string, string | null> = new Map();
 const eventCodeCache: Map<string, Set<string>> = new Map();
 const subscribers = new Set<() => void>();
@@ -382,6 +383,7 @@ const rebuild = () => {
     }
     eventCodeCache.set(action.id, codes);
   }
+  shortcutCodesSnapshot = Object.freeze(Array.from(shortcutSet).sort());
 };
 rebuild();
 
@@ -419,6 +421,8 @@ export const getResolvedKey = (id: TActionId): string | null => {
   if (resolvedCache.has(id)) return resolvedCache.get(id) ?? null;
   return ACTIONS[id].defaultKey;
 };
+
+export const getAppShortcutCodes = (): readonly string[] => shortcutCodesSnapshot;
 
 export const normalizeEvent = (e: KeyboardEvent): string => {
   const parts: string[] = [];

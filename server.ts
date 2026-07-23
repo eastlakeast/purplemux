@@ -28,6 +28,7 @@ import { initShellPath } from './src/lib/preflight';
 import { cleanupExpiredUploads } from './src/lib/uploads-store';
 import { cleanupOrphanSessionStats } from './src/lib/session-stats';
 import { createLogger } from './src/lib/logger';
+import { LOCAL_FILE_REMOTE_ADDRESS_HEADER } from './src/lib/local-file-server';
 import pkg from './package.json';
 
 const log = createLogger('server');
@@ -112,7 +113,10 @@ const proxyRequest = (req: IncomingMessage, res: ServerResponse, internalPort: n
       port: internalPort,
       path: req.url,
       method: req.method,
-      headers: req.headers,
+      headers: {
+        ...req.headers,
+        [LOCAL_FILE_REMOTE_ADDRESS_HEADER]: req.socket.remoteAddress ?? '',
+      },
     },
     (proxyRes) => {
       res.writeHead(proxyRes.statusCode!, proxyRes.headers);

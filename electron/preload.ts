@@ -11,8 +11,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setDockBadge: (count: number) => ipcRenderer.invoke('set-dock-badge', count),
   setLocale: (locale: string) => ipcRenderer.invoke('set-locale', locale),
   setNativeTheme: (theme: string) => ipcRenderer.invoke('set-native-theme', theme),
-  registerBrowserTab: (tabId: string, webContentsId: number) =>
-    ipcRenderer.invoke('browser:register', tabId, webContentsId),
+  registerBrowserTab: (tabId: string, webContentsId: number, shortcutCodes: readonly string[]) =>
+    ipcRenderer.invoke('browser:register', tabId, webContentsId, shortcutCodes),
   unregisterBrowserTab: (tabId: string) =>
     ipcRenderer.invoke('browser:unregister', tabId),
   setBrowserDeviceEmulation: (
@@ -26,6 +26,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       orientation?: 'portrait' | 'landscape';
     } | null,
   ) => ipcRenderer.invoke('browser:set-device-emulation', tabId, config),
+  onBrowserShortcut: (callback: (tabId: string, input: unknown) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, tabId: string, input: unknown) => callback(tabId, input);
+    ipcRenderer.on('browser:shortcut', handler);
+    return () => { ipcRenderer.removeListener('browser:shortcut', handler); };
+  },
   onNotificationClick: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on('notification-click', handler);

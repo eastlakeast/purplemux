@@ -11,5 +11,9 @@
   "deviceTip": "디바이스 선택",
   "rotate": "회전",
   "zoomTip": "줌",
-  "zoomFit": "맞춤"
+  "zoomFit": "맞춤",
+  "zoomIn": "확대",
+  "zoomOut": "축소",
+  "actualSize": "원본 크기",
+  "fileLoadError": "이 파일을 열 수 없습니다"
 }

@@ -11,5 +11,9 @@
   "deviceTip": "Choose a device",
   "rotate": "Rotate",
   "zoomTip": "Zoom",
-  "zoomFit": "Fit"
+  "zoomFit": "Fit",
+  "zoomIn": "Zoom in",
+  "zoomOut": "Zoom out",
+  "actualSize": "Actual size",
+  "fileLoadError": "Unable to open this file"
 }

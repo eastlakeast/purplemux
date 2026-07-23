@@ -17,10 +17,10 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   try {
-    const { sourcePaneId, orientation, cwd, panelType } = req.body ?? {};
+    const { sourcePaneId, orientation, cwd, panelType, name, webUrl } = req.body ?? {};
 
     if (sourcePaneId && orientation) {
-      const result = await splitPaneInLayout(wsId, sourcePaneId, orientation, cwd, panelType);
+      const result = await splitPaneInLayout(wsId, sourcePaneId, orientation, cwd, panelType, name, webUrl);
       if (!result) {
         return res.status(404).json({ error: 'Target pane not found' });
       }
