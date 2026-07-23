@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowLeft, ArrowRight, RotateCw, Globe, Smartphone, Monitor, RotateCcw, ChevronDown, FileText, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -6,6 +6,9 @@ import isElectron from '@/hooks/use-is-electron';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { localFilePathFromHref } from '@/lib/local-file-links';
 import { getLocalFileKind } from '@/lib/local-file-viewer';
+import { useLayoutStore } from '@/hooks/use-layout';
+import { getAppShortcutCodes, subscribeKeybindings } from '@/lib/keyboard-shortcuts';
+import { toKeyboardEventInit, type IWebviewKeyboardInput } from '@/lib/webview-keyboard';
 
 interface IElectronWebview extends HTMLElement {
   loadURL(url: string): Promise<void>;
@@ -29,9 +32,10 @@ interface IDeviceEmulationConfig {
 }
 
 interface IBrowserBridgeAPI {
-  registerBrowserTab?: (tabId: string, webContentsId: number) => Promise<unknown>;
+  registerBrowserTab?: (tabId: string, webContentsId: number, shortcutCodes: readonly string[]) => Promise<unknown>;
   unregisterBrowserTab?: (tabId: string) => Promise<unknown>;
   setBrowserDeviceEmulation?: (tabId: string, config: IDeviceEmulationConfig | null) => Promise<unknown>;
+  onBrowserShortcut?: (callback: (tabId: string, input: IWebviewKeyboardInput) => void) => () => void;
 }
 
 const getBridgeAPI = (): IBrowserBridgeAPI | null => {
@@ -148,6 +152,11 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
   useEffect(() => { onUrlChangeRef.current = onUrlChange; });
   const initialUrlRef = useRef(initialUrl);
   useEffect(() => { initialUrlRef.current = initialUrl; });
+  const shortcutCodes = useSyncExternalStore(
+    subscribeKeybindings,
+    getAppShortcutCodes,
+    getAppShortcutCodes,
+  );
 
   const selectedDevice = useMemo(
     () => DEVICE_PRESETS.find((d) => d.id === deviceId) ?? DEVICE_PRESETS[0],
@@ -224,20 +233,35 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
       if (!tabId) return;
       try {
         const wcId = wv!.getWebContentsId();
-        getBridgeAPI()?.registerBrowserTab?.(tabId, wcId);
+        getBridgeAPI()?.registerBrowserTab?.(tabId, wcId, shortcutCodes);
       } catch { /* webview not yet mounted; retry handled by subsequent dom-ready */ }
     };
 
     wv.addEventListener('did-navigate', handleNavigate);
     wv.addEventListener('did-navigate-in-page', handleNavigateInPage);
     wv.addEventListener('dom-ready', handleDomReady);
+    handleDomReady();
 
     return () => {
       wv!.removeEventListener('did-navigate', handleNavigate);
       wv!.removeEventListener('did-navigate-in-page', handleNavigateInPage);
       wv!.removeEventListener('dom-ready', handleDomReady);
     };
-  }, [url, tabId]);
+  }, [url, tabId, shortcutCodes]);
+
+  useEffect(() => {
+    if (!isElectron || !tabId) return;
+    const api = getBridgeAPI();
+    if (!api?.onBrowserShortcut) return;
+    return api.onBrowserShortcut((sourceTabId, input) => {
+      if (sourceTabId !== tabId) return;
+      if (input.type === 'keyDown') useLayoutStore.getState().focusTab(tabId);
+      requestAnimationFrame(() => {
+        const eventType = input.type === 'keyUp' ? 'keyup' : 'keydown';
+        document.dispatchEvent(new KeyboardEvent(eventType, toKeyboardEventInit(input)));
+      });
+    });
+  }, [tabId]);
 
   useEffect(() => {
     if (!isElectron || !tabId) return;

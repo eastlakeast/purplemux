@@ -1,6 +1,7 @@
 import type { AnchorHTMLAttributes, MouseEvent } from 'react';
 import { useLayoutStore } from '@/hooks/use-layout';
 import { localFilePathFromHref, localFilePathToViewerUrl } from '@/lib/local-file-links';
+import { captureTimelineScroll, restoreTimelineScrollAfterLayout } from '@/lib/timeline-scroll-anchor';
 
 export const TimelineMarkdownLink = ({
   href,
@@ -17,7 +18,10 @@ export const TimelineMarkdownLink = ({
     const sourcePaneId = event.currentTarget.closest<HTMLElement>('[data-pane-id]')?.dataset.paneId
       ?? useLayoutStore.getState().layout?.activePaneId;
     if (!sourcePaneId) return;
-    void useLayoutStore.getState().openLocalFileViewer(sourcePaneId, filePath);
+    const scrollSnapshot = captureTimelineScroll(event.currentTarget);
+    void useLayoutStore.getState().openLocalFileViewer(sourcePaneId, filePath).finally(() => {
+      if (scrollSnapshot) restoreTimelineScrollAfterLayout(scrollSnapshot);
+    });
   };
 
   return (
