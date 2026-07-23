@@ -1,5 +1,14 @@
 import { useCallback, useState, memo } from 'react';
-import { ChevronDown, ChevronRight, MoreHorizontal, Pencil, FolderMinus, Network } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FolderMinus,
+  MoreHorizontal,
+  Network,
+  Palette,
+  Pencil,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import {
@@ -11,7 +20,8 @@ import {
 } from '@/components/ui/context-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import useInlineEdit from '@/hooks/use-inline-edit';
-import type { IWorkspaceGroup } from '@/types/terminal';
+import { WORKSPACE_GROUP_COLORS } from '@/lib/workspace-group-colors';
+import type { IWorkspaceGroup, TWorkspaceGroupColor } from '@/types/terminal';
 
 interface IWorkspaceGroupHeaderProps {
   group: IWorkspaceGroup;
@@ -20,6 +30,7 @@ interface IWorkspaceGroupHeaderProps {
   onRename: (groupId: string, name: string) => void;
   onUngroup: (groupId: string) => void;
   onConfigureTeam: (groupId: string) => void;
+  onColorChange: (groupId: string, color: TWorkspaceGroupColor) => void;
 }
 
 const WorkspaceGroupHeader = ({
@@ -29,6 +40,7 @@ const WorkspaceGroupHeader = ({
   onRename,
   onUngroup,
   onConfigureTeam,
+  onColorChange,
 }: IWorkspaceGroupHeaderProps) => {
   const t = useTranslations('sidebar');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -114,6 +126,35 @@ const WorkspaceGroupHeader = ({
               <Network className="h-3.5 w-3.5" />
               {t('sessionTeam')}
             </button>
+            <div className="border-y border-border px-2 py-2">
+              <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                <Palette className="h-3.5 w-3.5" />
+                {t('groupColor')}
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {WORKSPACE_GROUP_COLORS.map((color) => {
+                  const selected = (group.color ?? 'neutral') === color.id;
+                  return (
+                    <button
+                      key={color.id}
+                      className={cn(
+                        'flex h-6 w-6 items-center justify-center rounded border border-border',
+                        selected && 'ring-1 ring-[var(--focus-indicator)]',
+                      )}
+                      style={{ backgroundColor: color.css }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onColorChange(group.id, color.id);
+                      }}
+                      aria-label={t('groupColor')}
+                      title={t('groupColor')}
+                    >
+                      {selected && <Check className="h-3.5 w-3.5 text-white drop-shadow" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <button
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
               onClick={handleRenameAction}

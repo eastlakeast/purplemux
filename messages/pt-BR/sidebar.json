@@ -17,13 +17,14 @@
   "ungrouped": "Sem grupo",
   "defaultGroupName": "Novo grupo",
   "emptyGroup": "(vazio)",
-  "sessionTeam": "Equipe de sessões",
+  "groupColor": "Cor do grupo",
+  "sessionTeam": "Equipe de agentes",
   "teamOrchestrator": "Orquestrador",
   "teamWorkers": "Sessões de trabalho",
   "teamAutomatic": "Automático",
   "teamUnavailable": "Indisponível",
   "teamNoAgentTabs": "Este grupo não possui abas do Claude Code ou Codex.",
-  "teamDisable": "Desativar equipe",
-  "teamSaved": "Equipe de sessões salva",
-  "teamSaveFailed": "Não foi possível salvar a equipe de sessões"
+  "teamDisable": "Desativar equipe de agentes",
+  "teamSaved": "Equipe de agentes salva",
+  "teamSaveFailed": "Não foi possível salvar a equipe de agentes"
 }

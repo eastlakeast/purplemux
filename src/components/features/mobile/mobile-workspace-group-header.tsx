@@ -1,8 +1,19 @@
 import { useCallback, useState, memo } from 'react';
-import { ChevronDown, ChevronRight, MoreHorizontal, Pencil, FolderMinus, Network } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FolderMinus,
+  MoreHorizontal,
+  Network,
+  Palette,
+  Pencil,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import type { IWorkspaceGroup } from '@/types/terminal';
+import { cn } from '@/lib/utils';
+import { WORKSPACE_GROUP_COLORS } from '@/lib/workspace-group-colors';
+import type { IWorkspaceGroup, TWorkspaceGroupColor } from '@/types/terminal';
 
 interface IMobileWorkspaceGroupHeaderProps {
   group: IWorkspaceGroup;
@@ -10,6 +21,7 @@ interface IMobileWorkspaceGroupHeaderProps {
   onToggle: (groupId: string) => void;
   onRenameRequest: (groupId: string) => void;
   onUngroup: (groupId: string) => void;
+  onColorChange: (groupId: string, color: TWorkspaceGroupColor) => void;
 }
 
 const MobileWorkspaceGroupHeader = ({
@@ -18,6 +30,7 @@ const MobileWorkspaceGroupHeader = ({
   onToggle,
   onRenameRequest,
   onUngroup,
+  onColorChange,
 }: IMobileWorkspaceGroupHeaderProps) => {
   const t = useTranslations('sidebar');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -63,6 +76,34 @@ const MobileWorkspaceGroupHeader = ({
           <MoreHorizontal size={14} />
         </PopoverTrigger>
         <PopoverContent side="bottom" align="end" className="w-44 gap-0 p-1">
+          <div className="border-b border-border px-2 py-2">
+            <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <Palette size={14} />
+              {t('groupColor')}
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {WORKSPACE_GROUP_COLORS.map((color) => {
+                const selected = (group.color ?? 'neutral') === color.id;
+                return (
+                  <button
+                    key={color.id}
+                    className={cn(
+                      'flex h-7 w-7 items-center justify-center rounded border border-border',
+                      selected && 'ring-1 ring-[var(--focus-indicator)]',
+                    )}
+                    style={{ backgroundColor: color.css }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onColorChange(group.id, color.id);
+                    }}
+                    aria-label={t('groupColor')}
+                  >
+                    {selected && <Check size={14} className="text-white drop-shadow" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <button
             className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm transition-colors hover:bg-accent"
             onClick={handleRenameAction}

@@ -91,10 +91,23 @@ export interface IWorkspaceTeamConfig {
   workerTabOverrides?: Record<string, string>;
 }
 
+export type TWorkspaceGroupColor =
+  | 'neutral'
+  | 'red'
+  | 'coral'
+  | 'amber'
+  | 'green'
+  | 'blue'
+  | 'purple'
+  | 'pink';
+
 export interface IWorkspaceGroup {
   id: string;
   name: string;
   collapsed?: boolean;
+  parentId?: string | null;
+  childOrder?: TWorkspaceSidebarItem[];
+  color?: TWorkspaceGroupColor;
   team?: IWorkspaceTeamConfig;
 }
 

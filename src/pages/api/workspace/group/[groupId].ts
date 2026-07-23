@@ -1,6 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { renameGroup, ungroupGroup, setGroupCollapsed, setGroupTeam } from '@/lib/workspace-store';
+import {
+  renameGroup,
+  ungroupGroup,
+  setGroupCollapsed,
+  setGroupColor,
+  setGroupTeam,
+} from '@/lib/workspace-store';
 import { validateWorkspaceTeamConfig } from '@/lib/workspace-team';
+import { isWorkspaceGroupColor } from '@/lib/workspace-group-colors';
 import type { IWorkspaceTeamConfig } from '@/types/terminal';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
@@ -13,7 +20,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   if (req.method === 'PATCH') {
-    const { name, collapsed, team } = req.body ?? {};
+    const { name, collapsed, color, team } = req.body ?? {};
 
     if (team !== undefined) {
       if (team === null) {
@@ -59,6 +66,15 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       if (name === undefined) return res.status(200).json({ ok: true });
     }
 
+    if (color !== undefined) {
+      if (!isWorkspaceGroupColor(color)) {
+        return res.status(400).json({ error: 'Invalid group color' });
+      }
+      const group = await setGroupColor(groupId, color);
+      if (!group) return res.status(404).json({ error: 'Group not found' });
+      return res.status(200).json(group);
+    }
+
     if (name !== undefined) {
       if (typeof name !== 'string' || !name.trim()) {
         return res.status(400).json({ error: 'name required' });
@@ -68,7 +84,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       return res.status(200).json(group);
     }
 
-    return res.status(400).json({ error: 'name, collapsed, or team required' });
+    return res.status(400).json({ error: 'name, collapsed, color, or team required' });
   }
 
   res.setHeader('Allow', 'DELETE, PATCH');

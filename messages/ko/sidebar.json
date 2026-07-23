@@ -17,13 +17,14 @@
   "ungrouped": "그룹 없음",
   "defaultGroupName": "새 그룹",
   "emptyGroup": "(비어 있음)",
-  "sessionTeam": "세션 팀",
+  "groupColor": "그룹 색상",
+  "sessionTeam": "에이전트 팀",
   "teamOrchestrator": "오케스트레이터",
   "teamWorkers": "작업 세션",
   "teamAutomatic": "자동",
   "teamUnavailable": "사용 불가",
   "teamNoAgentTabs": "이 그룹에 Claude Code 또는 Codex 탭이 없습니다.",
-  "teamDisable": "세션 팀 해제",
-  "teamSaved": "세션 팀을 저장했습니다",
-  "teamSaveFailed": "세션 팀을 저장하지 못했습니다"
+  "teamDisable": "에이전트 팀 해제",
+  "teamSaved": "에이전트 팀을 저장했습니다",
+  "teamSaveFailed": "에이전트 팀을 저장하지 못했습니다"
 }

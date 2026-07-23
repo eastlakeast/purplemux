@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useRef } from 'react';
+import { useMemo, useState, useCallback, useRef, type ReactNode } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -25,7 +25,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import type { IWorkspace, IWorkspaceGroup, IPaneNode, ITab, TPanelType } from '@/types/terminal';
+import type {
+  IPaneNode,
+  ITab,
+  IWorkspace,
+  TPanelType,
+  TWorkspaceGroupColor,
+  TWorkspaceSidebarItem,
+} from '@/types/terminal';
 import useTabMetadataStore from '@/hooks/use-tab-metadata-store';
 import useTabStore, { selectWorkspacePortsLabel } from '@/hooks/use-tab-store';
 import { formatTabTitle } from '@/lib/tab-title';
@@ -35,7 +42,11 @@ import WorkspaceStatusIndicator from '@/components/features/workspace/workspace-
 import SidebarRateLimits from '@/components/layout/sidebar-rate-limits';
 import MobileWorkspaceGroupHeader from '@/components/features/mobile/mobile-workspace-group-header';
 import RenameGroupDialog from '@/components/features/workspace/rename-group-dialog';
-import { normalizeWorkspaceSidebarOrder } from '@/lib/workspace-order';
+import {
+  getWorkspaceGroupWorkspaceCount,
+  normalizeWorkspaceHierarchy,
+} from '@/lib/workspace-order';
+import { getWorkspaceGroupColorCss } from '@/lib/workspace-group-colors';
 
 const WorkspacePortsLabel = ({ workspaceId }: { workspaceId: string }) => {
   const label = useTabStore(
@@ -106,6 +117,10 @@ const MobileNavigationSheet = ({
 
   const handleUngroupGroup = useCallback((groupId: string) => {
     useWorkspaceStore.getState().ungroupGroup(groupId);
+  }, []);
+
+  const handleGroupColorChange = useCallback((groupId: string, color: TWorkspaceGroupColor) => {
+    useWorkspaceStore.getState().updateGroupColor(groupId, color);
   }, []);
 
   const handleCreateGroup = useCallback(async () => {
@@ -272,37 +287,18 @@ const MobileNavigationSheet = ({
     });
   };
 
-  type TSection =
-    | { type: 'group'; group: IWorkspaceGroup; workspaces: IWorkspace[] }
-    | { type: 'workspace'; workspace: IWorkspace };
-
-  const sections = useMemo<TSection[]>(() => {
-    const validGroupIds = new Set(groups.map((g) => g.id));
-    const byGroup = new Map<string, IWorkspace[]>();
-    const workspaceById = new Map<string, IWorkspace>();
-    for (const ws of workspaces) {
-      const gid = ws.groupId ?? null;
-      if (gid && validGroupIds.has(gid)) {
-        const list = byGroup.get(gid) ?? [];
-        list.push(ws);
-        byGroup.set(gid, list);
-      } else {
-        workspaceById.set(ws.id, ws);
-      }
-    }
-    const groupById = new Map(groups.map((group) => [group.id, group]));
-    const out: TSection[] = [];
-    for (const item of normalizeWorkspaceSidebarOrder(workspaces, groups, sidebarOrder)) {
-      if (item.type === 'group') {
-        const group = groupById.get(item.id);
-        if (group) out.push({ type: 'group', group, workspaces: byGroup.get(item.id) ?? [] });
-        continue;
-      }
-      const workspace = workspaceById.get(item.id);
-      if (workspace) out.push({ type: 'workspace', workspace });
-    }
-    return out;
-  }, [workspaces, groups, sidebarOrder]);
+  const hierarchy = useMemo(
+    () => normalizeWorkspaceHierarchy(workspaces, groups, sidebarOrder),
+    [workspaces, groups, sidebarOrder],
+  );
+  const workspaceById = useMemo(
+    () => new Map(hierarchy.workspaces.map((workspace) => [workspace.id, workspace])),
+    [hierarchy.workspaces],
+  );
+  const groupById = useMemo(
+    () => new Map(hierarchy.groups.map((group) => [group.id, group])),
+    [hierarchy.groups],
+  );
 
   const renderWorkspaceRow = (ws: IWorkspace) => {
     const isExpanded = ws.id === expandedWsId;
@@ -346,6 +342,44 @@ const MobileNavigationSheet = ({
     );
   };
 
+  const renderHierarchyItems = (items: TWorkspaceSidebarItem[]): ReactNode => (
+    <>
+      {items.map((item) => {
+        if (item.type === 'workspace') {
+          const workspace = workspaceById.get(item.id);
+          return workspace ? renderWorkspaceRow(workspace) : null;
+        }
+        const group = groupById.get(item.id);
+        if (!group) return null;
+        const childItems = group.childOrder ?? [];
+        return (
+          <div key={`group-${group.id}`} className="pt-1">
+            <MobileWorkspaceGroupHeader
+              group={group}
+              count={getWorkspaceGroupWorkspaceCount(hierarchy.workspaces, hierarchy.groups, group.id)}
+              onToggle={handleToggleGroup}
+              onRenameRequest={handleRenameGroupRequest}
+              onUngroup={handleUngroupGroup}
+              onColorChange={handleGroupColorChange}
+            />
+            {!group.collapsed && (
+              <div
+                className="ml-5 border-l-2 pl-1"
+                style={{ borderLeftColor: getWorkspaceGroupColorCss(group.color) }}
+              >
+                {childItems.length > 0 ? renderHierarchyItems(childItems) : (
+                  <div className="px-4 py-2 text-xs italic text-muted-foreground/50">
+                    {ts('emptyGroup')}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+
   const renameTargetGroup = renameGroupId
     ? groups.find((g) => g.id === renameGroupId) ?? null
     : null;
@@ -388,32 +422,7 @@ const MobileNavigationSheet = ({
             className="flex-1 overflow-y-auto"
             style={{ scrollbarWidth: 'none' }}
           >
-            {sections.map((section) => {
-              if (section.type === 'group') {
-                return (
-                  <div key={`group-${section.group.id}`} className="pt-1">
-                    <MobileWorkspaceGroupHeader
-                      group={section.group}
-                      count={section.workspaces.length}
-                      onToggle={handleToggleGroup}
-                      onRenameRequest={handleRenameGroupRequest}
-                      onUngroup={handleUngroupGroup}
-                    />
-                    {!section.group.collapsed && (
-                      <div className="pl-4">
-                        {section.workspaces.map(renderWorkspaceRow)}
-                        {section.workspaces.length === 0 && (
-                          <div className="px-4 py-2 text-xs italic text-muted-foreground/50">
-                            {ts('emptyGroup')}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-              return renderWorkspaceRow(section.workspace);
-            })}
+            {renderHierarchyItems(hierarchy.sidebarOrder)}
           </div>
         ) : (
           <NotificationPanel onNavigated={() => onOpenChange(false)} className="px-3 pt-3 pb-3" />

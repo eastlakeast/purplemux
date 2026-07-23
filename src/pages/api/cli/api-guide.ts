@@ -41,7 +41,7 @@ GET /api/cli/tabs/<tabId>/result?workspaceId=WS
   Capture the current pane content.
   Response: { "content": "..." }
 
-## Group session teams
+## Group agent teams
 
 Inside a purplemux tmux tab, the CLI infers workspaceId and sessionName. HTTP
 clients can provide either context explicitly.

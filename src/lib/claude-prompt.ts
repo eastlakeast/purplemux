@@ -33,7 +33,7 @@ purplemux tab result -w ${ws.id} TAB_ID               # capture current pane con
 purplemux tab close -w ${ws.id} TAB_ID                # close a tab
 \`\`\`
 
-If this workspace belongs to an enabled group session team, these commands
+If this workspace belongs to an enabled group agent team, these commands
 automatically identify the current workspace and tab:
 
 \`\`\`bash
