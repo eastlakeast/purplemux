@@ -46,6 +46,7 @@ import { getEntryText } from '@/lib/timeline-entry-text';
 import { firstMatchRange } from '@/lib/timeline-search-dom';
 import { useTimelineSearchHighlight } from '@/hooks/use-timeline-search-highlight';
 import { reloadForReconnectRecovery, shouldPromptMobileReloadRecovery } from '@/lib/ws-reload-recovery';
+import { calculateTimelineSpacerHeight } from '@/lib/timeline-scroll-anchor';
 
 interface ITimelineViewProps {
   entries: ITimelineEntry[];
@@ -585,17 +586,20 @@ const TimelineView = ({
   const spacerRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const armedRef = useRef(false);
+  const anchorPinnedRef = useRef(false);
+  const isAtBottomRef = useRef(true);
   const wasBusyRef = useRef(false);
   const pendingShrinkRef = useRef(false);
-  const { scrollRef, contentRef, scrollToBottom } = useStickToBottom({
+  const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom({
     resize: { damping: 0.8, stiffness: 0.05 },
     initial: 'instant',
     targetScrollTop: (defaultTarget, { scrollElement }) => {
       const el = anchorElRef.current;
-      if (!el) return defaultTarget;
+      if (!el || !anchorPinnedRef.current) return defaultTarget;
       return getOffsetInScroller(el, scrollElement) - ANCHOR_OFFSET;
     },
   });
+  isAtBottomRef.current = isAtBottom;
   const [anchorUserId, setAnchorUserId] = useState<string | null>(null);
   const [spacerHeight, setSpacerHeight] = useState(0);
   const [skipAnimation, setSkipAnimation] = useState(true);
@@ -611,6 +615,7 @@ const TimelineView = ({
       setAnchorUserId(null);
     }
     armedRef.current = false;
+    anchorPinnedRef.current = false;
     wasBusyRef.current = false;
     pendingShrinkRef.current = false;
   }
@@ -713,6 +718,7 @@ const TimelineView = ({
 
   useEffect(() => {
     if (armedRef.current && lastUserMessageId && lastUserMessageId !== anchorUserId) {
+      anchorPinnedRef.current = true;
       setAnchorUserId(lastUserMessageId);
       armedRef.current = false;
       return;
@@ -759,10 +765,21 @@ const TimelineView = ({
     if (!scrollEl || !userEl || !spacerEl) return;
     const userBottom = userEl.offsetTop + userEl.offsetHeight;
     const postUserHeight = Math.max(0, spacerEl.offsetTop - userBottom);
-    const available = scrollEl.clientHeight - userEl.offsetHeight - ANCHOR_OFFSET;
-    const next = Math.max(0, available - postUserHeight);
+    const next = calculateTimelineSpacerHeight(
+      scrollEl.clientHeight,
+      userEl.offsetHeight,
+      postUserHeight,
+      ANCHOR_OFFSET,
+    );
+    const releaseAnchor = next === 0 && anchorPinnedRef.current && isAtBottomRef.current;
+    if (releaseAnchor) anchorPinnedRef.current = false;
     setSpacerHeight((prev) => (prev === next ? prev : next));
-  }, [scrollRef]);
+    if (releaseAnchor) {
+      requestAnimationFrame(() => {
+        scrollToBottom({ preserveScrollPosition: true });
+      });
+    }
+  }, [scrollRef, scrollToBottom]);
 
   const shrinkSpacerSafely = useCallback(() => {
     const scrollEl = scrollRef.current;
@@ -774,8 +791,12 @@ const TimelineView = ({
     const scrollTop = scrollEl.scrollTop;
     const userBottom = userEl.offsetTop + userEl.offsetHeight;
     const postUserHeight = Math.max(0, spacerEl.offsetTop - userBottom);
-    const available = scrollEl.clientHeight - userEl.offsetHeight - ANCHOR_OFFSET;
-    const pinRemainder = Math.max(0, available - postUserHeight);
+    const pinRemainder = calculateTimelineSpacerHeight(
+      scrollEl.clientHeight,
+      userEl.offsetHeight,
+      postUserHeight,
+      ANCHOR_OFFSET,
+    );
     const pin = Math.max(0, getOffsetInScroller(userEl, scrollEl) - ANCHOR_OFFSET);
     const atPin = scrollTop >= pin - 2;
     const target = atPin ? pinRemainder : 0;
@@ -800,6 +821,7 @@ const TimelineView = ({
     wasBusyRef.current = false;
     pendingShrinkRef.current = false;
     if (!anchorUserId) {
+      anchorPinnedRef.current = false;
       setSpacerHeight(0);
       return;
     }
@@ -818,11 +840,15 @@ const TimelineView = ({
     const contentEl = contentRef.current;
     if (!contentEl) return;
     const ro = new ResizeObserver(() => {
-      if (pendingShrinkRef.current) shrinkSpacerSafely();
+      if (anchorPinnedRef.current && isAtBottomRef.current) {
+        measureSpacer();
+      } else if (pendingShrinkRef.current) {
+        shrinkSpacerSafely();
+      }
     });
     ro.observe(contentEl);
     return () => ro.disconnect();
-  }, [contentRef, shrinkSpacerSafely]);
+  }, [contentRef, measureSpacer, shrinkSpacerSafely]);
 
   useEffect(() => {
     if (!anchorUserId) return;
@@ -1076,10 +1102,9 @@ const TimelineView = ({
       <ScrollToBottomButton
         visible={hasOverflowBelow}
         onClick={() => {
-          const el = scrollRef.current;
-          if (!el) return;
-          const spacerH = spacerRef.current?.offsetHeight ?? 0;
-          el.scrollTo({ top: el.scrollHeight - spacerH, behavior: 'smooth' });
+          anchorPinnedRef.current = false;
+          setSpacerHeight(0);
+          requestAnimationFrame(() => scrollToBottom('smooth'));
         }}
       />
     </div>

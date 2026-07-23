@@ -29,6 +29,16 @@ export const anchoredScrollTop = (
   capturedItemOffset: number,
 ): number => Math.max(0, scrollTop + currentItemOffset - capturedItemOffset);
 
+export const calculateTimelineSpacerHeight = (
+  viewportHeight: number,
+  userMessageHeight: number,
+  contentAfterUserHeight: number,
+  anchorOffset: number,
+): number => Math.max(
+  0,
+  viewportHeight - userMessageHeight - anchorOffset - contentAfterUserHeight,
+);
+
 const getTimelineItems = (root: HTMLElement): HTMLElement[] =>
   Array.from(root.querySelectorAll<HTMLElement>('[data-timeline-item]'));
 
@@ -132,4 +142,3 @@ export const restoreTimelineScrollAfterLayout = (snapshot: ITimelineScrollSnapsh
   frameId = requestAnimationFrame(tick);
   return cleanup;
 };
-
