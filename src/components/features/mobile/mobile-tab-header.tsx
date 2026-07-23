@@ -32,6 +32,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import type { TPanelType } from '@/types/terminal';
+import useWorkspaceStore from '@/hooks/use-workspace-store';
+import { isOrchestratorTab } from '@/lib/workspace-team-role';
+import OrchestratorIndicator from '@/components/features/workspace/orchestrator-indicator';
 
 const iconButtonClassName = 'relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground';
 const iconClassName = 'h-4 w-4 shrink-0';
@@ -98,6 +101,11 @@ const MobileTabHeader = ({
   const [modeDrawerOpen, setModeDrawerOpen] = useState(false);
   const showCopy = panelType === 'terminal' && !!sessionName;
   const tabEntry = useTabStore((s) => s.tabs[tabId]);
+  const isOrchestrator = useWorkspaceStore((state) =>
+    state.activeWorkspaceId
+      ? isOrchestratorTab(state.groups, state.activeWorkspaceId, tabId)
+      : false,
+  );
   const gitPhase = useGitStatusStore((state) => state.phase);
   const gitStatus = useGitStatusStore((state) => state.status);
   const gitBranch = useGitStatusStore((state) => state.branch);
@@ -194,6 +202,7 @@ const MobileTabHeader = ({
       <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1">
           <TabStatusIndicator tabId={tabId} panelType={panelType} />
+          {isOrchestrator && <OrchestratorIndicator side="bottom" />}
           {renderTabIcon()}
           <span className="min-w-0 flex-1 truncate text-xs text-foreground">{tabName}</span>
           {switchable && (

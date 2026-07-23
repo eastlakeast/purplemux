@@ -61,6 +61,7 @@ import {
   normalizeWorkspaceHierarchy,
 } from '@/lib/workspace-order';
 import { getWorkspaceGroupColorCss } from '@/lib/workspace-group-colors';
+import { isOrchestratorWorkspace } from '@/lib/workspace-team-role';
 
 const MIN_WIDTH = 160;
 const MAX_WIDTH = 480;
@@ -440,6 +441,7 @@ const Sidebar = () => {
           workspace={workspace}
           isActive={workspace.id === activeWorkspaceId && router.pathname === '/' && !activeWebviewId}
           isDeleting={deletingIds.has(workspace.id)}
+          isOrchestrator={isOrchestratorWorkspace(groups, workspace.id)}
           shortcutLabel={flatIndex < 8 ? `⌘${flatIndex + 1}` : flatIndex === workspaces.length - 1 ? '⌘9' : undefined}
           showShortcut={showShortcuts}
           tabs={workspaceTabs[workspace.id]}

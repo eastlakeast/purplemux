@@ -16,6 +16,7 @@ interface IPaneTabBarProps {
   activeTabId: string | null;
   tabTitles?: Record<string, string>;
   tabProcesses?: Record<string, string>;
+  orchestratorTabId?: string | null;
   isLoading: boolean;
   error: string | null;
   isCreating: boolean;
@@ -39,6 +40,7 @@ const PaneTabBar = ({
   activeTabId,
   tabTitles,
   tabProcesses,
+  orchestratorTabId,
   isLoading,
   error,
   isCreating,
@@ -192,6 +194,7 @@ const PaneTabBar = ({
             dropSide={dropTarget?.id === tab.id ? dropTarget.side : null}
             displayTitle={tabTitles?.[tab.id]}
             currentProcess={tabProcesses?.[tab.id]}
+            isOrchestrator={tab.id === orchestratorTabId}
             modeSwitcher={tab.id === activeTabId && canSwitchMode(tab.panelType) ? (
               <AgentModeSwitcher
                 tabId={tab.id}

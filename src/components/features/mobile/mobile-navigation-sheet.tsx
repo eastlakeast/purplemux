@@ -47,6 +47,8 @@ import {
   normalizeWorkspaceHierarchy,
 } from '@/lib/workspace-order';
 import { getWorkspaceGroupColorCss } from '@/lib/workspace-group-colors';
+import OrchestratorIndicator from '@/components/features/workspace/orchestrator-indicator';
+import { isOrchestratorTab, isOrchestratorWorkspace } from '@/lib/workspace-team-role';
 
 const WorkspacePortsLabel = ({ workspaceId }: { workspaceId: string }) => {
   const label = useTabStore(
@@ -234,6 +236,9 @@ const MobileNavigationSheet = ({
             tabId={tab.id}
             panelType={panelType}
           />
+          {isOrchestratorTab(groups, workspaceId, tab.id) && (
+            <OrchestratorIndicator side="right" className="h-3 w-3" />
+          )}
           <span className="mt-0.5 flex w-4 shrink-0 items-center justify-center">
             {panelType === 'claude-code' ? (
               <ClaudeCodeIcon size={16} />
@@ -320,7 +325,12 @@ const MobileNavigationSheet = ({
             <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
           )}
           <div className="min-w-0 flex-1">
-            <span className="block truncate">{ws.name}</span>
+            <span className="flex min-w-0 items-center gap-1.5">
+              {isOrchestratorWorkspace(groups, ws.id) && (
+                <OrchestratorIndicator side="right" />
+              )}
+              <span className="truncate">{ws.name}</span>
+            </span>
             <WorkspacePortsLabel workspaceId={ws.id} />
             {!isExpanded && (
               <WorkspaceStatusIndicator

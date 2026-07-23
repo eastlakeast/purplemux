@@ -17,11 +17,13 @@ import useTabStore, { selectWorkspacePortsLabel } from '@/hooks/use-tab-store';
 import useWorkspaceStore from '@/hooks/use-workspace-store';
 import useInlineEdit from '@/hooks/use-inline-edit';
 import WorkspaceStatusIndicator from '@/components/features/workspace/workspace-status-indicator';
+import OrchestratorIndicator from '@/components/features/workspace/orchestrator-indicator';
 
 interface IWorkspaceItemProps {
   workspace: IWorkspace;
   isActive: boolean;
   isDeleting: boolean;
+  isOrchestrator: boolean;
   shortcutLabel?: string;
   showShortcut: boolean;
   tabs?: ITab[];
@@ -34,6 +36,7 @@ const WorkspaceItem = ({
   workspace,
   isActive,
   isDeleting,
+  isOrchestrator,
   shortcutLabel,
   showShortcut,
   tabs,
@@ -126,8 +129,9 @@ const WorkspaceItem = ({
             onBlur={commit}
           />
         ) : (
-          <span className="truncate border-b border-transparent text-sm font-medium leading-tight">
-            {workspace.name}
+          <span className="flex min-w-0 items-center gap-1.5 border-b border-transparent text-sm font-medium leading-tight">
+            {isOrchestrator && <OrchestratorIndicator side="right" />}
+            <span className="truncate">{workspace.name}</span>
           </span>
         )}
         {displayDirs.map((dir, i) => (
