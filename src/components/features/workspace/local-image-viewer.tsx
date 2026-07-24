@@ -52,6 +52,19 @@ const LocalImageViewer = ({ contentUrl, fileName, onError }: ILocalImageViewerPr
   const [zoom, setZoom] = useState<TImageZoom>('fit');
   const [isPanning, setIsPanning] = useState(false);
 
+  const syncImageSize = useCallback(() => {
+    const image = imageRef.current;
+    if (!image?.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
+    setImageSize({
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+    });
+  }, []);
+
+  useEffect(() => {
+    syncImageSize();
+  }, [contentUrl, syncImageSize]);
+
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -243,10 +256,7 @@ const LocalImageViewer = ({ contentUrl, fileName, onError }: ILocalImageViewerPr
               maxWidth: 'none',
               maxHeight: 'none',
             } : { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-            onLoad={(event) => setImageSize({
-              width: event.currentTarget.naturalWidth,
-              height: event.currentTarget.naturalHeight,
-            })}
+            onLoad={syncImageSize}
             onError={onError}
           />
         </div>
