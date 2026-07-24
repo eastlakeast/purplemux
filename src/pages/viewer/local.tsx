@@ -4,9 +4,7 @@ import type { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import { useTranslations } from 'next-intl';
 import ReactMarkdown, { defaultUrlTransform, type UrlTransform } from 'react-markdown';
-import { AlertCircle, Minus, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { AlertCircle } from 'lucide-react';
 import {
   isLocalFilePath,
   localFileName,
@@ -17,8 +15,7 @@ import {
   LOCAL_FILE_REHYPE_PLUGINS,
   LOCAL_FILE_REMARK_PLUGINS,
 } from '@/lib/local-file-markdown';
-
-const IMAGE_ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+import LocalImageViewer from '@/components/features/workspace/local-image-viewer';
 
 const LocalViewerPage = () => {
   const router = useRouter();
@@ -31,7 +28,6 @@ const LocalViewerPage = () => {
   const [content, setContent] = useState('');
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [imageZoom, setImageZoom] = useState<number | 'fit'>('fit');
 
   const loadTextContent = useCallback(async () => {
     if (!contentUrl || !['markdown', 'json', 'text'].includes(kind)) return;
@@ -66,14 +62,6 @@ const LocalViewerPage = () => {
     return transformed === url ? defaultUrlTransform(url) : transformed;
   }, [validPath]);
 
-  const adjustZoom = (direction: -1 | 1) => {
-    const current = imageZoom === 'fit' ? 1 : imageZoom;
-    const currentIndex = IMAGE_ZOOM_STEPS.reduce((closest, value, index) =>
-      Math.abs(value - current) < Math.abs(IMAGE_ZOOM_STEPS[closest] - current) ? index : closest, 0);
-    const nextIndex = Math.max(0, Math.min(IMAGE_ZOOM_STEPS.length - 1, currentIndex + direction));
-    setImageZoom(IMAGE_ZOOM_STEPS[nextIndex]);
-  };
-
   const renderContent = () => {
     if (!validPath || error) {
       return (
@@ -86,32 +74,12 @@ const LocalViewerPage = () => {
 
     if (kind === 'image') {
       return (
-        <div className="relative flex h-full min-h-0 flex-col bg-muted/20">
-          <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md border border-border bg-background/95 p-1 shadow-sm">
-            <Button variant="ghost" size="icon-sm" onClick={() => adjustZoom(-1)} aria-label={t('zoomOut')}>
-              <Minus className="h-3.5 w-3.5" />
-            </Button>
-            <button
-              className="min-w-14 px-1 text-center text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setImageZoom(imageZoom === 'fit' ? 1 : 'fit')}
-              title={imageZoom === 'fit' ? t('actualSize') : t('zoomFit')}
-            >
-              {imageZoom === 'fit' ? t('zoomFit') : `${Math.round(imageZoom * 100)}%`}
-            </button>
-            <Button variant="ghost" size="icon-sm" onClick={() => adjustZoom(1)} aria-label={t('zoomIn')}>
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-5">
-            <img
-              src={contentUrl}
-              alt={fileName}
-              className={cn('block', imageZoom === 'fit' && 'max-h-full max-w-full object-contain')}
-              style={imageZoom === 'fit' ? undefined : { width: 'auto', height: 'auto', maxWidth: 'none', zoom: imageZoom }}
-              onError={() => setError(true)}
-            />
-          </div>
-        </div>
+        <LocalImageViewer
+          key={contentUrl}
+          contentUrl={contentUrl}
+          fileName={fileName}
+          onError={() => setError(true)}
+        />
       );
     }
 
