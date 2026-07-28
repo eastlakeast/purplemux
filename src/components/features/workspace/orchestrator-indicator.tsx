@@ -1,4 +1,4 @@
-import { RadioTower } from 'lucide-react';
+import { Crown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import {
@@ -32,7 +32,7 @@ const OrchestratorIndicator = ({
             />
           }
         >
-          <RadioTower
+          <Crown
             className={cn('h-3.5 w-3.5 text-[var(--focus-indicator)]', className)}
             aria-hidden="true"
           />
