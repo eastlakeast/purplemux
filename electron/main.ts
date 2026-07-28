@@ -875,19 +875,75 @@ ipcMain.handle('set-locale', (_event, locale: string) => {
 
 // --- Native Notifications ---
 
-ipcMain.handle('show-notification', (event, title: string, body: string) => {
-  const anyFocused = BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isFocused());
-  if (anyFocused) return false;
-  const senderWin = BrowserWindow.fromWebContents(event.sender);
-  const notification = new Notification({ title, body });
-  notification.on('click', () => {
-    const target = senderWin && !senderWin.isDestroyed() ? senderWin : getPrimaryWindow();
-    target?.show();
-    target?.focus();
-    target?.webContents.send('notification-click');
-  });
-  notification.show();
+interface INativeNotificationTarget {
+  workspaceId: string;
+  tabId: string;
+}
+
+interface IActiveNativeNotification {
+  notification: Notification;
+  senderWindow: BrowserWindow | null;
+  target: INativeNotificationTarget;
+}
+
+const activeNativeNotifications = new Map<string, IActiveNativeNotification>();
+let nativeNotificationSequence = 0;
+
+const dismissNativeNotification = (notificationId: string): IActiveNativeNotification | null => {
+  const active = activeNativeNotifications.get(notificationId);
+  if (!active) return null;
+  activeNativeNotifications.delete(notificationId);
+  if (active.senderWindow && !active.senderWindow.isDestroyed()) {
+    active.senderWindow.webContents.send('notification-closed', notificationId);
+  }
+  return active;
+};
+
+const openNativeNotification = (notificationId: string): boolean => {
+  const active = dismissNativeNotification(notificationId);
+  if (!active) return false;
+
+  const targetWindow = active.senderWindow && !active.senderWindow.isDestroyed()
+    ? active.senderWindow
+    : getPrimaryWindow();
+  targetWindow?.show();
+  targetWindow?.focus();
+  targetWindow?.webContents.send('notification-click', active.target);
+  active.notification.close();
   return true;
+};
+
+ipcMain.handle('show-notification', (
+  event,
+  title: string,
+  body: string,
+  target: INativeNotificationTarget,
+) => {
+  const anyFocused = BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isFocused());
+  if (anyFocused) return null;
+  if (!target || typeof target.workspaceId !== 'string' || typeof target.tabId !== 'string') {
+    return null;
+  }
+
+  const notificationId = `notification-${Date.now()}-${++nativeNotificationSequence}`;
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  const notification = new Notification({ title, body });
+  activeNativeNotifications.set(notificationId, { notification, senderWindow, target });
+  notification.on('click', () => openNativeNotification(notificationId));
+  notification.on('close', () => dismissNativeNotification(notificationId));
+
+  try {
+    notification.show();
+    return notificationId;
+  } catch {
+    activeNativeNotifications.delete(notificationId);
+    return null;
+  }
+});
+
+ipcMain.handle('open-notification', (_event, notificationId: string) => {
+  if (typeof notificationId !== 'string') return false;
+  return openNativeNotification(notificationId);
 });
 
 ipcMain.handle('open-new-window', () => {

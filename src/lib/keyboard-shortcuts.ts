@@ -23,6 +23,7 @@ export interface IAction {
   defaultKey: string;
   display: { mac: string; other: string };
   editable?: boolean;
+  relayToWebview?: boolean;
 }
 
 const numberKeys = (prefix: string) =>
@@ -253,6 +254,14 @@ export const ACTIONS = {
     defaultKey: `${mod}+shift+n`,
     display: { mac: '⌘⇧N', other: 'Ctrl+Shift+N' },
   },
+  'app.open_notification': {
+    id: 'app.open_notification',
+    label: 'Open notification',
+    category: 'app',
+    defaultKey: 'Space',
+    display: { mac: 'Space', other: 'Space' },
+    relayToWebview: false,
+  },
 } as const satisfies Record<string, IAction>;
 
 export type TActionId = keyof typeof ACTIONS;
@@ -377,7 +386,9 @@ const rebuild = () => {
       const parsed = parseHotkeyToEventCode(hotkey);
       if (parsed) {
         codes.add(parsed);
-        shortcutSet.add(parsed);
+        if (!('relayToWebview' in action) || action.relayToWebview !== false) {
+          shortcutSet.add(parsed);
+        }
       }
     }
     eventCodeCache.set(action.id, codes);
