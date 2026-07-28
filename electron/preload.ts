@@ -6,7 +6,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getSystemResources: () => ipcRenderer.invoke('get-system-resources'),
-  showNotification: (title: string, body: string) => ipcRenderer.invoke('show-notification', title, body),
+  showNotification: (
+    title: string,
+    body: string,
+    target: { workspaceId: string; tabId: string },
+  ) => ipcRenderer.invoke('show-notification', title, body, target),
+  openNotification: (notificationId: string) =>
+    ipcRenderer.invoke('open-notification', notificationId),
   openNewWindow: () => ipcRenderer.invoke('open-new-window'),
   setDockBadge: (count: number) => ipcRenderer.invoke('set-dock-badge', count),
   setLocale: (locale: string) => ipcRenderer.invoke('set-locale', locale),
@@ -31,9 +37,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('browser:shortcut', handler);
     return () => { ipcRenderer.removeListener('browser:shortcut', handler); };
   },
-  onNotificationClick: (callback: () => void) => {
-    const handler = () => callback();
+  onNotificationClick: (callback: (target: { workspaceId: string; tabId: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, target: { workspaceId: string; tabId: string }) => callback(target);
     ipcRenderer.on('notification-click', handler);
     return () => { ipcRenderer.removeListener('notification-click', handler); };
+  },
+  onNotificationClosed: (callback: (notificationId: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, notificationId: string) => callback(notificationId);
+    ipcRenderer.on('notification-closed', handler);
+    return () => { ipcRenderer.removeListener('notification-closed', handler); };
   },
 });

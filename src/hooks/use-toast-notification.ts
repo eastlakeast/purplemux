@@ -7,6 +7,7 @@ import useWorkspaceStore from '@/hooks/use-workspace-store';
 import useConfigStore from '@/hooks/use-config-store';
 import { navigateToTab, useLayoutStore } from '@/hooks/use-layout';
 import { findPane } from '@/lib/layout-tree';
+import { registerNotificationShortcutTarget } from '@/lib/notification-shortcut';
 
 const truncate = (s: string, n: number): string =>
   s.length <= n ? s : s.slice(0, n).trimEnd() + '…';
@@ -23,6 +24,15 @@ const toastIdFor = (tabId: string) => `tab-complete:${tabId}`;
 
 const useToastNotification = () => {
   useEffect(() => {
+    const shortcutCleanups = new Map<string, () => void>();
+
+    const clearToastShortcut = (toastId: string) => {
+      const cleanup = shortcutCleanups.get(toastId);
+      if (!cleanup) return;
+      shortcutCleanups.delete(toastId);
+      cleanup();
+    };
+
     const unsubTabs = useTabStore.subscribe((state, prev) => {
       const { toastOnCompleteEnabled, toastDuration } = useConfigStore.getState();
       if (!toastOnCompleteEnabled) return;
@@ -43,9 +53,28 @@ const useToastNotification = () => {
         const body = tab.lastUserMessage ? truncate(tab.lastUserMessage, 120) : (tab.tabName || tabId);
         const workspaceId = tab.workspaceId;
         const title = `${t('notification', 'toastCompleteTitle')} · ${wsName}`;
+        const toastId = toastIdFor(tabId);
+
+        clearToastShortcut(toastId);
+        let unregisterShortcut = () => {};
+        const clearShortcut = () => {
+          if (shortcutCleanups.get(toastId) !== unregisterShortcut) return;
+          shortcutCleanups.delete(toastId);
+          unregisterShortcut();
+        };
+        const openTab = () => {
+          clearShortcut();
+          toast.dismiss(toastId);
+          navigateToTab(workspaceId, tabId);
+        };
+        unregisterShortcut = registerNotificationShortcutTarget({
+          id: `toast:${toastId}`,
+          open: openTab,
+        });
+        shortcutCleanups.set(toastId, unregisterShortcut);
 
         toast.success(title, {
-          id: toastIdFor(tabId),
+          id: toastId,
           description: body,
           duration: toastDuration,
           classNames: {
@@ -53,8 +82,10 @@ const useToastNotification = () => {
           },
           action: {
             label: t('notification', 'openTab'),
-            onClick: () => navigateToTab(workspaceId, tabId),
+            onClick: openTab,
           },
+          onDismiss: clearShortcut,
+          onAutoClose: clearShortcut,
         });
       }
     });
@@ -64,7 +95,11 @@ const useToastNotification = () => {
       const next = getFocusedTabId();
       if (next === prevFocused) return;
       prevFocused = next;
-      if (next) toast.dismiss(toastIdFor(next));
+      if (next) {
+        const toastId = toastIdFor(next);
+        clearToastShortcut(toastId);
+        toast.dismiss(toastId);
+      }
     };
     const unsubLayout = useLayoutStore.subscribe(syncFocus);
     Router.events.on('routeChangeComplete', syncFocus);
@@ -73,6 +108,8 @@ const useToastNotification = () => {
       unsubTabs();
       unsubLayout();
       Router.events.off('routeChangeComplete', syncFocus);
+      for (const cleanup of shortcutCleanups.values()) cleanup();
+      shortcutCleanups.clear();
     };
   }, []);
 };

@@ -25,6 +25,7 @@ import { Toaster } from "sonner";
 import useTerminalTheme from "@/hooks/use-terminal-theme";
 import useAgentStatus from "@/hooks/use-agent-status";
 import useNativeNotification from "@/hooks/use-native-notification";
+import useNotificationShortcut from "@/hooks/use-notification-shortcut";
 import useToastNotification from "@/hooks/use-toast-notification";
 import useWebPush from "@/hooks/use-web-push";
 import useIsMobile from "@/hooks/use-is-mobile";
@@ -95,6 +96,7 @@ const CustomCSSSync = () => {
 const AgentStatusProvider = () => {
   useAgentStatus();
   useNativeNotification();
+  useNotificationShortcut();
   useToastNotification();
   useWebPush();
   return null;
