@@ -1075,6 +1075,13 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
   }, [isTerminalCollapsed, isReady, status, fit, isAgentPanel, activeTabId, paneId, activeTab?.terminalRatio, updateTabTerminalLayout, sendEffectiveResize]);
 
   useEffect(() => {
+    if (!isFocused || !isAgentPanel) return;
+    const handleShortcut = () => handleToggleTerminal();
+    window.addEventListener('purplemux-toggle-terminal', handleShortcut);
+    return () => window.removeEventListener('purplemux-toggle-terminal', handleShortcut);
+  }, [handleToggleTerminal, isAgentPanel, isFocused]);
+
+  useEffect(() => {
     if (!splitGroupRef.current) return;
     suppressTerminalSaveRef.current = true;
     if (isAgentPanel) {
