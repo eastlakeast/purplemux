@@ -130,6 +130,15 @@ const useKeyboardShortcuts = ({
 
   useBoundHotkey('pane.clear_screen', () => {}, enabled);
 
+  useBoundHotkey('panel.toggle_terminal', () => {
+    const l = layoutRef.current;
+    const pane = getFocusedPane(l.layout);
+    if (!pane?.activeTabId) return;
+    const tab = pane.tabs.find((candidate) => candidate.id === pane.activeTabId);
+    if (tab?.panelType !== 'claude-code' && tab?.panelType !== 'codex-cli') return;
+    window.dispatchEvent(new CustomEvent('purplemux-toggle-terminal'));
+  }, enabled);
+
   useBoundHotkey(
     'tab.goto',
     (event) => {

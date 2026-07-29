@@ -181,6 +181,13 @@ export const ACTIONS = {
     defaultKey: `${mod}+i`,
     display: { mac: '⌘I', other: 'Ctrl+I' },
   },
+  'panel.toggle_terminal': {
+    id: 'panel.toggle_terminal',
+    label: 'Toggle terminal panel',
+    category: 'panel',
+    defaultKey: 'ctrl+shift+Backquote',
+    display: { mac: '⌃⇧`', other: 'Ctrl+Shift+`' },
+  },
 
   'view.toggle_sidebar': {
     id: 'view.toggle_sidebar',
@@ -348,6 +355,7 @@ const formatKeyLabel = (key: string): string => {
   if (lower === 'slash') return '/';
   if (lower === 'equal') return '=';
   if (lower === 'minus') return '-';
+  if (lower === 'backquote') return '`';
   if (lower === 'space') return 'Space';
   if (lower === 'enter' || lower === 'return') return 'Enter';
   if (lower === 'escape' || lower === 'esc') return 'Esc';
