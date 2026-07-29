@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useMemo, useEffect, type SetStateAction 
 import { toast } from 'sonner';
 import { t } from '@/lib/i18n';
 import type { TCliState } from '@/types/timeline';
+import type { TWebStdinSender } from '@/types/terminal';
 import { isCliIdle } from '@/hooks/use-tab-store';
 
 type TWebInputMode = 'input' | 'interrupt' | 'disabled';
@@ -60,7 +61,7 @@ interface IUseWebInputOptions {
 
 const useWebInput = (
   cliState: TCliState,
-  sendStdin: (data: string) => void,
+  sendStdin: TWebStdinSender,
   terminalWsConnected: boolean,
   options?: IUseWebInputOptions,
 ): IUseWebInputReturn => {
@@ -107,12 +108,8 @@ const useWebInput = (
       return;
     }
 
-    if (value.includes('\n')) {
-      sendStdin(`\x1b[200~${value}\x1b[201~`);
-    } else {
-      sendStdin(value);
-    }
-    setTimeout(() => sendStdin('\r'), submitDelayMs);
+    const payload = value.includes('\n') ? `\x1b[200~${value}\x1b[201~` : value;
+    sendStdin(payload, submitDelayMs);
 
     if (!value.trim().startsWith('/')) {
       onMessageSent?.(value.trim());

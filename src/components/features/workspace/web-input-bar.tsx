@@ -14,6 +14,7 @@ import { isImageFile, uploadImage } from '@/lib/upload-image-client';
 import { uploadFile } from '@/lib/upload-file-client';
 import { countImageRefs, waitForImageAttachments } from '@/lib/image-attach-detector';
 import type { TCliState } from '@/types/timeline';
+import type { TWebStdinSender } from '@/types/terminal';
 
 const DEFAULT_MAX_ROWS = 5;
 const LINE_HEIGHT = 20;
@@ -40,7 +41,7 @@ interface IWebInputBarProps {
   agentSessionId?: string | null;
   provider?: 'claude' | 'codex';
   cliState: TCliState;
-  sendStdin: (data: string) => void;
+  sendStdin: TWebStdinSender;
   terminalWsConnected: boolean;
   visible: boolean;
   focusTerminal: () => void;
@@ -243,9 +244,7 @@ const WebInputBar = ({
       }
 
       if (hasText) {
-        const payload = ` ${text}`;
-        sendStdin(`\x1b[200~${payload}\x1b[201~`);
-        setTimeout(() => sendStdin('\r'), submitDelayMs);
+        sendStdin(`\x1b[200~ ${text}\x1b[201~`, submitDelayMs);
       } else {
         sendStdin('\r');
       }

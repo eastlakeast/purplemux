@@ -4,6 +4,9 @@ export const MSG_RESIZE = 0x02;
 export const MSG_HEARTBEAT = 0x03;
 export const MSG_KILL_SESSION = 0x04;
 export const MSG_WEB_STDIN = 0x05;
+export const MSG_WEB_SUBMIT = 0x06;
+
+export const MAX_SUBMIT_DELAY_MS = 0xffff;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -29,6 +32,22 @@ export const encodeWebStdin = (data: string): ArrayBuffer => {
   const frame = new Uint8Array(1 + payload.length);
   frame[0] = MSG_WEB_STDIN;
   frame.set(payload, 1);
+  return frame.buffer;
+};
+
+/**
+ * Text plus its trailing Enter as one frame, so the server can deliver both inside a
+ * single per-session lock hold. Layout: [type][uint16 submitDelayMs][utf-8 text].
+ */
+export const encodeWebSubmit = (data: string, submitDelayMs: number): ArrayBuffer => {
+  const payload = encoder.encode(data);
+  const frame = new Uint8Array(3 + payload.length);
+  frame[0] = MSG_WEB_SUBMIT;
+  new DataView(frame.buffer).setUint16(
+    1,
+    Math.min(Math.max(Math.round(submitDelayMs), 0), MAX_SUBMIT_DELAY_MS),
+  );
+  frame.set(payload, 3);
   return frame.buffer;
 };
 

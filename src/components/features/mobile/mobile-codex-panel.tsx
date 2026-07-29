@@ -18,6 +18,7 @@ import CodexUpdatePromptCard from '@/components/features/workspace/codex-update-
 import TrustPromptCard from '@/components/features/workspace/trust-prompt-card';
 import TimelineView from '@/components/features/timeline/timeline-view';
 import WebInputBar from '@/components/features/workspace/web-input-bar';
+import type { TWebStdinSender } from '@/types/terminal';
 import QuickPromptBar from '@/components/features/workspace/quick-prompt-bar';
 import useQuickPrompts from '@/hooks/use-quick-prompts';
 import { MetaCompact } from '@/components/features/workspace/session-meta-content';
@@ -34,7 +35,7 @@ interface IMobileCodexPanelProps {
   wsId?: string;
   sessionName?: string;
   cwd?: string;
-  sendStdin: (data: string) => void;
+  sendStdin: TWebStdinSender;
   terminalWsConnected: boolean;
   focusTerminal: () => void;
   focusInputRef: React.MutableRefObject<(() => void) | undefined>;
