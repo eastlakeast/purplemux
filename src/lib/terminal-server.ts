@@ -8,6 +8,7 @@ import {
   defaultSessionName,
   exitCopyMode,
 } from './tmux';
+import { withTmuxSendLock } from '@/lib/tmux-send-queue';
 import { buildShellEnv } from '@/lib/shell-env';
 import { PRISTINE_ENV } from '@/lib/pristine-env';
 import { encodeStdout } from '@/lib/terminal-protocol';
@@ -21,6 +22,7 @@ const MSG_RESIZE = 0x02;
 const MSG_HEARTBEAT = 0x03;
 const MSG_KILL_SESSION = 0x04;
 const MSG_WEB_STDIN = 0x05;
+const MSG_WEB_SUBMIT = 0x06;
 
 const MAX_CONNECTIONS = 32;
 const HEARTBEAT_INTERVAL = 30_000;
@@ -32,6 +34,8 @@ const THROTTLE_FLUSH_INTERVAL_MS = 250;
 
 const TMUX_SOCKET = 'purple';
 const textDecoder = new TextDecoder();
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 interface IActiveConnection {
   ws: WebSocket;
@@ -283,9 +287,31 @@ export const handleConnection = async (ws: WebSocket, request: IncomingMessage, 
       case MSG_WEB_STDIN: {
         const data = textDecoder.decode(msg.payload);
         webStdinQueue = webStdinQueue
-          .then(() => exitCopyMode(sessionName))
-          .catch(() => {})
-          .then(() => { ptyProcess?.write(data); });
+          .then(() =>
+            withTmuxSendLock(sessionName, async () => {
+              await exitCopyMode(sessionName);
+              ptyProcess?.write(data);
+            }),
+          )
+          .catch(() => {});
+        break;
+      }
+      case MSG_WEB_SUBMIT: {
+        if (msg.payload.length < 2) break;
+        const view = new DataView(msg.payload.buffer, msg.payload.byteOffset, msg.payload.byteLength);
+        const submitDelayMs = view.getUint16(0);
+        const data = textDecoder.decode(msg.payload.slice(2));
+        webStdinQueue = webStdinQueue
+          .then(() =>
+            withTmuxSendLock(sessionName, async () => {
+              await exitCopyMode(sessionName);
+              ptyProcess?.write(data);
+              // The TUI needs to commit the paste before Enter arrives as a discrete keypress.
+              if (submitDelayMs > 0) await sleep(submitDelayMs);
+              ptyProcess?.write('\r');
+            }),
+          )
+          .catch(() => {});
         break;
       }
       case MSG_RESIZE: {

@@ -9,6 +9,9 @@ export type TConnectionStatus =
 
 export type TDisconnectReason = 'max-connections' | 'pty-error' | 'session-not-found' | 'reconnect-exhausted' | null;
 
+/** Omit submitDelayMs to send text only; pass it to have the server append Enter atomically. */
+export type TWebStdinSender = (data: string, submitDelayMs?: number) => void;
+
 export type TPanelType = 'terminal' | 'claude-code' | 'codex-cli' | 'agent-sessions' | 'web-browser' | 'diff';
 export type TDiffViewMode = 'split' | 'unified';
 export type TDiffTab = 'changes' | 'history';

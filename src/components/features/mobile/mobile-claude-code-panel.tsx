@@ -26,6 +26,7 @@ import { MetaCompact } from '@/components/features/workspace/session-meta-conten
 import MobileMetaSheet from './mobile-meta-sheet';
 import useQuickPrompts from '@/hooks/use-quick-prompts';
 import type { TCliState } from '@/types/timeline';
+import type { TWebStdinSender } from '@/types/terminal';
 
 interface IMobileClaudeCodePanelProps {
   tabId?: string;
@@ -33,7 +34,7 @@ interface IMobileClaudeCodePanelProps {
   sessionName: string;
   claudeSessionId?: string | null;
   cwd?: string;
-  sendStdin: (data: string) => void;
+  sendStdin: TWebStdinSender;
   terminalWsConnected: boolean;
   focusTerminal: () => void;
   focusInputRef: React.MutableRefObject<(() => void) | undefined>;

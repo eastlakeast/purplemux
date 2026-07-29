@@ -8,6 +8,7 @@ import { buildShellLaunchCommand } from '@/lib/shell-env';
 import { createLogger } from '@/lib/logger';
 import { isLinux } from '@/lib/platform';
 import { getProcessArgs } from '@/lib/process-utils';
+import { withTmuxSendLock } from '@/lib/tmux-send-queue';
 
 const log = createLogger('terminal');
 
@@ -317,6 +318,10 @@ export const getPaneTitle = async (sessionName: string): Promise<string | null> 
   }
 };
 
+/**
+ * Not queued: it is the first step of every send below, and the queue is not reentrant.
+ * Callers that hold the lock themselves (terminal-server's web stdin path) use it directly.
+ */
 export const exitCopyMode = async (sessionName: string): Promise<void> => {
   await execFile(
     'tmux',
@@ -329,12 +334,14 @@ export const sendKeys = async (
   sessionName: string,
   command: string,
 ): Promise<void> => {
-  await exitCopyMode(sessionName);
-  await execFile(
-    'tmux',
-    ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, command, 'Enter'],
-    { timeout: CMD_TIMEOUT },
-  );
+  await withTmuxSendLock(sessionName, async () => {
+    await exitCopyMode(sessionName);
+    await execFile(
+      'tmux',
+      ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, command, 'Enter'],
+      { timeout: CMD_TIMEOUT },
+    );
+  });
 };
 
 // Send text and Enter as two separate tmux invocations split by 50ms.
@@ -345,42 +352,48 @@ export const sendKeysSeparated = async (
   sessionName: string,
   text: string,
 ): Promise<void> => {
-  await exitCopyMode(sessionName);
-  await execFile(
-    'tmux',
-    ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, text],
-    { timeout: CMD_TIMEOUT },
-  );
-  await sleep(50);
-  await execFile(
-    'tmux',
-    ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, 'Enter'],
-    { timeout: CMD_TIMEOUT },
-  );
+  await withTmuxSendLock(sessionName, async () => {
+    await exitCopyMode(sessionName);
+    await execFile(
+      'tmux',
+      ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, text],
+      { timeout: CMD_TIMEOUT },
+    );
+    await sleep(50);
+    await execFile(
+      'tmux',
+      ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, 'Enter'],
+      { timeout: CMD_TIMEOUT },
+    );
+  });
 };
 
 export const sendRawKeys = async (
   sessionName: string,
   keys: string,
 ): Promise<void> => {
-  await exitCopyMode(sessionName);
-  await execFile(
-    'tmux',
-    ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, keys],
-    { timeout: CMD_TIMEOUT },
-  );
+  await withTmuxSendLock(sessionName, async () => {
+    await exitCopyMode(sessionName);
+    await execFile(
+      'tmux',
+      ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, keys],
+      { timeout: CMD_TIMEOUT },
+    );
+  });
 };
 
 export const sendLiteralInput = async (
   sessionName: string,
   input: string,
 ): Promise<void> => {
-  await exitCopyMode(sessionName);
-  await execFile(
-    'tmux',
-    ['-L', TMUX_SOCKET, 'send-keys', '-l', '-t', sessionName, input],
-    { timeout: CMD_TIMEOUT },
-  );
+  await withTmuxSendLock(sessionName, async () => {
+    await exitCopyMode(sessionName);
+    await execFile(
+      'tmux',
+      ['-L', TMUX_SOCKET, 'send-keys', '-l', '-t', sessionName, input],
+      { timeout: CMD_TIMEOUT },
+    );
+  });
 };
 
 /** Send text via bracketed paste mode and press Enter twice (handles Claude Code long input confirmation) */
@@ -388,23 +401,25 @@ export const sendBracketedPaste = async (
   sessionName: string,
   content: string,
 ): Promise<void> => {
-  await exitCopyMode(sessionName);
-  await execFile(
-    'tmux',
-    ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, '-l', `\x1b[200~${content}\x1b[201~`],
-    { timeout: CMD_TIMEOUT },
-  );
-  await execFile(
-    'tmux',
-    ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, 'Enter'],
-    { timeout: CMD_TIMEOUT },
-  );
-  await new Promise((resolve) => setTimeout(resolve, 600));
-  await execFile(
-    'tmux',
-    ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, 'Enter'],
-    { timeout: CMD_TIMEOUT },
-  );
+  await withTmuxSendLock(sessionName, async () => {
+    await exitCopyMode(sessionName);
+    await execFile(
+      'tmux',
+      ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, '-l', `\x1b[200~${content}\x1b[201~`],
+      { timeout: CMD_TIMEOUT },
+    );
+    await execFile(
+      'tmux',
+      ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, 'Enter'],
+      { timeout: CMD_TIMEOUT },
+    );
+    await sleep(600);
+    await execFile(
+      'tmux',
+      ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, 'Enter'],
+      { timeout: CMD_TIMEOUT },
+    );
+  });
 };
 
 

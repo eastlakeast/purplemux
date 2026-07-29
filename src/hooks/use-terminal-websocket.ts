@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { nanoid } from 'nanoid';
-import type { TConnectionStatus, TDisconnectReason } from '@/types/terminal';
+import type { TConnectionStatus, TDisconnectReason, TWebStdinSender } from '@/types/terminal';
 import {
   MSG_STDOUT,
   MSG_HEARTBEAT,
   encodeStdin,
   encodeWebStdin,
+  encodeWebSubmit,
   encodeResize,
   encodeHeartbeat,
   decodeMessage,
@@ -207,11 +208,14 @@ const useTerminalWebSocket = ({
     }
   }, []);
 
-  const sendWebStdin = useCallback((data: string) => {
+  // Passing submitDelayMs makes the server append Enter itself, keeping text and Enter
+  // in one serialized unit so a concurrent send cannot land between them.
+  const sendWebStdin = useCallback<TWebStdinSender>((data, submitDelayMs) => {
     const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(encodeWebStdin(data));
-    }
+    if (ws?.readyState !== WebSocket.OPEN) return;
+    ws.send(
+      submitDelayMs === undefined ? encodeWebStdin(data) : encodeWebSubmit(data, submitDelayMs),
+    );
   }, []);
 
   const sendResize = useCallback((cols: number, rows: number) => {
