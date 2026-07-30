@@ -21,11 +21,27 @@ const splitLocalFilePaths = (value: string): IMarkdownNode[] | null => {
     : { type: 'text', value: segmentValue });
 };
 
+const inlineCodeLocalFileLink = (node: IMarkdownNode): IMarkdownNode | null => {
+  if (node.type !== 'inlineCode' || typeof node.value !== 'string') return null;
+  const segments = splitTimelineLocalFilePaths(node.value);
+  if (segments?.length !== 1 || segments[0].filePath !== node.value) return null;
+  return {
+    type: 'link',
+    url: node.value,
+    children: [node],
+  };
+};
+
 const transformNode = (node: IMarkdownNode): void => {
   if (!node.children || SKIP_CHILDREN.has(node.type ?? '')) return;
 
   for (let idx = 0; idx < node.children.length; idx += 1) {
     const child = node.children[idx];
+    const inlineCodeLink = inlineCodeLocalFileLink(child);
+    if (inlineCodeLink) {
+      node.children.splice(idx, 1, inlineCodeLink);
+      continue;
+    }
     if (child.type === 'text' && typeof child.value === 'string') {
       const replacement = splitLocalFilePaths(child.value);
       if (replacement) {
