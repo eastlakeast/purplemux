@@ -30,9 +30,17 @@ describe('remarkLocalFileLinks', () => {
     expect(html).toContain('href="/viewer/local?path=%2Ftmp%2Faios-screen-mockup%2Faios-main.png"');
   });
 
-  it('does not link app-relative paths or inline code', () => {
+  it('does not link app-relative paths or inline code containing a command', () => {
     expect(renderMarkdown('Open /api/timeline/entries')).not.toContain('<a ');
-    expect(renderMarkdown('`/tmp/aios-main.png`')).not.toContain('<a ');
+    expect(renderMarkdown('`open /tmp/aios-main.png`')).not.toContain('<a ');
+  });
+
+  it('links inline code when its entire value is a local file path', () => {
+    const html = renderMarkdown('`/private/tmp/aios-chat-session-c2/c2-full.png`');
+    expect(html).toContain(
+      'href="/viewer/local?path=%2Fprivate%2Ftmp%2Faios-chat-session-c2%2Fc2-full.png"',
+    );
+    expect(html).toContain('<code>/private/tmp/aios-chat-session-c2/c2-full.png</code>');
   });
 
   it('links local file paths inside code blocks', () => {
