@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { timelineUrlTransform } from '@/lib/timeline-markdown-url';
 import { remarkLocalFileLinks } from '@/lib/remark-local-file-links';
 import { TimelineMarkdownLink } from '@/components/features/timeline/timeline-markdown-link';
+import { TimelineMarkdownPre } from '@/components/features/timeline/timeline-markdown-pre';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ const REMARK_PLUGINS = [remarkGfm, remarkLocalFileLinks];
 const REHYPE_PLUGINS = [rehypeHighlight];
 const MARKDOWN_COMPONENTS = {
   a: TimelineMarkdownLink,
+  pre: TimelineMarkdownPre,
 };
 
 interface IPlanItemProps {

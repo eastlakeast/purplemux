@@ -6,8 +6,9 @@ import { captureTimelineScroll, restoreTimelineScrollAfterLayout } from '@/lib/t
 export const TimelineMarkdownLink = ({
   href,
   onClick,
+  node: _node,
   ...props
-}: AnchorHTMLAttributes<HTMLAnchorElement>) => {
+}: AnchorHTMLAttributes<HTMLAnchorElement> & { node?: unknown }) => {
   const filePath = localFilePathFromHref(href);
   const normalizedHref = filePath ? localFilePathToViewerUrl(filePath) : href;
 
