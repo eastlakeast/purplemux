@@ -23,7 +23,13 @@ vi.mock('child_process', () => ({
   },
 }));
 
-const { sendKeys, sendKeysSeparated, sendLiteralInput, sendRawKeys } = await import('@/lib/tmux');
+const {
+  sendBracketedPaste,
+  sendKeys,
+  sendKeysSeparated,
+  sendLiteralInput,
+  sendRawKeys,
+} = await import('@/lib/tmux');
 
 /** tmux invocations for one session, minus the copy-mode reset that opens every send. */
 const sentPayloads = (session: string): string[] =>
@@ -106,5 +112,28 @@ describe('tmux send serialization', () => {
       'recovered message',
       'Enter',
     ]);
+  });
+
+  it('runs a preflight inside the send lock before writing any input', async () => {
+    const steps: string[] = [];
+    await sendBracketedPaste('pt-g', 'safe message', async () => {
+      steps.push('preflight');
+      expect(sentPayloads('pt-g')).toEqual([]);
+    });
+
+    expect(steps).toEqual(['preflight']);
+    expect(sentPayloads('pt-g')).toEqual([
+      '\x1b[200~safe message\x1b[201~',
+      'Enter',
+      'Enter',
+    ]);
+  });
+
+  it('does not write when a preflight rejects the send', async () => {
+    await expect(sendBracketedPaste('pt-h', 'blocked message', async () => {
+      throw new Error('input occupied');
+    })).rejects.toThrow('input occupied');
+
+    expect(sentPayloads('pt-h')).toEqual([]);
   });
 });

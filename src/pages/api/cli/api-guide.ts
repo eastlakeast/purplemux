@@ -31,15 +31,16 @@ DELETE /api/cli/tabs/<tabId>?workspaceId=WS
 
 POST /api/cli/tabs/<tabId>/send?workspaceId=WS
   Body: { "content": "..." }
-  Send text (bracketed paste) to the tab.
+  Send text (bracketed paste) to the tab. Claude Code input is checked immediately
+  before delivery; HTTP 409 is returned for typed or unknown input.
   Response: { "status": "sent" }
 
 GET /api/cli/tabs/<tabId>/status?workspaceId=WS
-  Response: { "tabId", "workspaceId", "alive", "command", "cliState", "agentProviderId", "agentSessionId", "claudeSessionId" }
+  Response: { "tabId", "workspaceId", "alive", "command", "cliState", "agentProviderId", "agentSessionId", "claudeSessionId", "inputState" }
 
 GET /api/cli/tabs/<tabId>/result?workspaceId=WS
   Capture the current pane content.
-  Response: { "content": "..." }
+  Response: { "content": "...", "inputState": "empty" | "placeholder" | "typed" | "unavailable" | "unknown" | null }
 
 ## Group agent teams
 

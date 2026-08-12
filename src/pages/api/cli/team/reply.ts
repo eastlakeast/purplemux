@@ -2,6 +2,10 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { verifyCliToken } from '@/lib/cli-token';
 import { hasSession, sendBracketedPaste } from '@/lib/tmux';
 import { resolveWorkspaceTeamContext } from '@/lib/workspace-team';
+import {
+  AgentInputBlockedError,
+  assertAgentInputAvailable,
+} from '@/lib/agent-input-state';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
@@ -28,10 +32,12 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (team.currentRole !== 'worker' || !team.currentMember) {
     return res.status(403).json({ error: 'Only a configured worker tab can reply to the orchestrator' });
   }
-  if (!team.orchestrator?.sessionName) {
+  const orchestrator = team.orchestrator;
+  if (!orchestrator?.sessionName) {
     return res.status(409).json({ error: 'The configured orchestrator tab is unavailable' });
   }
-  if (!(await hasSession(team.orchestrator.sessionName))) {
+  const orchestratorSessionName = orchestrator.sessionName;
+  if (!(await hasSession(orchestratorSessionName))) {
     return res.status(409).json({ error: 'The orchestrator session is not running' });
   }
 
@@ -40,10 +46,25 @@ Group: ${team.groupName}
 From: ${team.currentMember.alias} (${team.currentMember.workspaceName})
 
 ${content.trim()}`;
-  await sendBracketedPaste(team.orchestrator.sessionName, message);
+  try {
+    await sendBracketedPaste(
+      orchestratorSessionName,
+      message,
+      () => assertAgentInputAvailable(
+        orchestratorSessionName,
+        orchestrator.panelType ?? undefined,
+        orchestrator.cliState,
+      ),
+    );
+  } catch (error) {
+    if (error instanceof AgentInputBlockedError) {
+      return res.status(409).json({ error: error.message, inputState: error.inputState });
+    }
+    throw error;
+  }
   return res.status(200).json({
     status: 'sent',
-    orchestrator: team.orchestrator.alias,
+    orchestrator: orchestrator.alias,
   });
 };
 

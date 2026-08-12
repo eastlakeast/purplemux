@@ -2,6 +2,10 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { verifyCliToken } from '@/lib/cli-token';
 import { findTab } from '@/lib/cli-utils';
 import { sendBracketedPaste, hasSession } from '@/lib/tmux';
+import {
+  AgentInputBlockedError,
+  assertAgentInputAvailable,
+} from '@/lib/agent-input-state';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
@@ -29,7 +33,22 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   const alive = await hasSession(found.tab.sessionName);
   if (!alive) return res.status(409).json({ error: 'Tab session is not running' });
 
-  await sendBracketedPaste(found.tab.sessionName, content);
+  try {
+    await sendBracketedPaste(
+      found.tab.sessionName,
+      content,
+      () => assertAgentInputAvailable(
+        found.tab.sessionName,
+        found.tab.panelType,
+        found.tab.cliState,
+      ),
+    );
+  } catch (error) {
+    if (error instanceof AgentInputBlockedError) {
+      return res.status(409).json({ error: error.message, inputState: error.inputState });
+    }
+    throw error;
+  }
   return res.status(200).json({ status: 'sent' });
 };
 

@@ -411,8 +411,10 @@ export const sendLiteralInput = async (
 export const sendBracketedPaste = async (
   sessionName: string,
   content: string,
+  beforeSend?: () => Promise<void>,
 ): Promise<void> => {
   await withTmuxSendLock(sessionName, async () => {
+    await beforeSend?.();
     await exitCopyMode(sessionName);
     await execFile(
       'tmux',
@@ -507,6 +509,40 @@ export const capturePaneContent = async (sessionName: string): Promise<string | 
       { timeout: CMD_TIMEOUT },
     );
     return stdout;
+  } catch {
+    return null;
+  }
+};
+
+export interface IPaneSnapshot {
+  ansiContent: string;
+  cursorX: number;
+  cursorY: number;
+  width: number;
+  height: number;
+}
+
+export const capturePaneSnapshot = async (sessionName: string): Promise<IPaneSnapshot | null> => {
+  try {
+    const [{ stdout: ansiContent }, { stdout: paneInfo }] = await Promise.all([
+      execFile(
+        'tmux',
+        ['-L', TMUX_SOCKET, 'capture-pane', '-p', '-e', '-t', sessionName],
+        { timeout: CMD_TIMEOUT },
+      ),
+      execFile(
+        'tmux',
+        [
+          '-L', TMUX_SOCKET,
+          'display-message', '-p', '-t', sessionName,
+          '#{cursor_x}\t#{cursor_y}\t#{pane_width}\t#{pane_height}',
+        ],
+        { timeout: CMD_TIMEOUT },
+      ),
+    ]);
+    const [cursorX, cursorY, width, height] = paneInfo.trim().split('\t').map(Number);
+    if ([cursorX, cursorY, width, height].some((value) => !Number.isFinite(value))) return null;
+    return { ansiContent, cursorX, cursorY, width, height };
   } catch {
     return null;
   }
