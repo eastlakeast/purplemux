@@ -11,7 +11,7 @@ export const sanitizeForTomlTripleQuote = (s: string): string =>
 
 export const toTomlBasicString = (s: string): string => JSON.stringify(s);
 
-const buildBody = (ws: IWorkspace): string => {
+export const buildCodexPromptBody = (ws: IWorkspace): string => {
   const raw = `# purplemux context
 
 You are running inside a purplemux workspace tab via OpenAI Codex CLI.
@@ -53,6 +53,14 @@ Use team aliases instead of provider session IDs. Team tasks may arrive while
 you are busy and be queued as normal purplemux input. Workers should use
 \`purplemux team reply\` for completion reports, blockers, and questions.
 
+Before sending input to another Claude Code tab, use \`tab status\` or \`tab result\`
+and read \`inputState\`. \`empty\` and \`placeholder\` are safe to send. \`typed\`
+means the user has unsubmitted input, and \`unknown\` is unsafe. \`unavailable\`
+means no input editor is visible; guarded send commands only allow it while the
+agent is \`busy\`, when the message can be queued. Do not infer input occupancy from
+visible text: Claude Code renders its suggested prompt as text, but purplemux reports
+it as \`placeholder\`. Send commands enforce this check immediately before delivery.
+
 For the full HTTP API reference (including endpoint paths and payloads),
 run:
 
@@ -66,9 +74,14 @@ purplemux api-guide
   (long-running builds, different project context, parallel exploration).
 - Poll \`status\` and read \`result\` to verify delegated work.
 - Prefer small, scoped tabs over cramming everything into one session.
-- When creating a \`claude-code\` tab that should run Claude Code, pass the
-  full launch command with hooks via \`-c\`; do not start it later with plain
-  \`claude\`, because that bypasses purplemux status and timeline hooks.
+- When you need a new Codex or Claude Code session, create a purplemux tab with
+  the matching full launch command below. Do not run plain \`codex\`, plain
+  \`claude\`, or the launcher directly inside an existing terminal.
+
+\`\`\`bash
+purplemux tab create -w ${ws.id} -t codex-cli -c "node '/Users/donghojo/.purplemux/codex-launcher.js' --workspace-id '${ws.id}'"
+purplemux tab create -w ${ws.id} -t claude-code -c "claude --settings ~/.purplemux/hooks.json --append-system-prompt-file ~/.purplemux/workspaces/${ws.id}/claude-prompt.md --dangerously-skip-permissions"
+\`\`\`
 
 ### Tab type notes
 
@@ -86,7 +99,7 @@ purplemux api-guide
 export const writeCodexPromptFile = async (ws: IWorkspace): Promise<void> => {
   const filePath = getCodexPromptPath(ws.id);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const body = buildBody(ws);
+  const body = buildCodexPromptBody(ws);
   try {
     const existing = await fs.readFile(filePath, 'utf-8');
     if (existing === body) return;

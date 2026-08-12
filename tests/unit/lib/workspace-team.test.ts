@@ -25,6 +25,7 @@ const team: IResolvedWorkspaceTeam = {
     tabName: 'Claude',
     panelType: 'claude-code',
     sessionName: 'session-orchestrator',
+    cliState: 'idle',
     selection: 'configured',
   },
   workers: [
@@ -37,6 +38,7 @@ const team: IResolvedWorkspaceTeam = {
       tabName: 'Codex',
       panelType: 'codex-cli',
       sessionName: 'session-one',
+      cliState: 'idle',
       selection: 'automatic',
     },
   ],

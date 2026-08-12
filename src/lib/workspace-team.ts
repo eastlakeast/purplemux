@@ -9,6 +9,7 @@ import type {
   IWorkspaceTeamConfig,
   TPanelType,
 } from '@/types/terminal';
+import type { TCliState } from '@/types/timeline';
 
 export type TWorkspaceTeamRole = 'orchestrator' | 'worker' | 'observer';
 export type TWorkspaceTeamSelection = 'configured' | 'automatic' | 'unavailable';
@@ -18,6 +19,7 @@ export interface IWorkspaceTeamTabOption {
   tabName: string;
   panelType: TPanelType;
   sessionName: string;
+  cliState?: TCliState;
 }
 
 export interface IWorkspaceTeamWorkspaceOption {
@@ -35,6 +37,7 @@ export interface IResolvedWorkspaceTeamMember {
   tabName: string | null;
   panelType: TPanelType | null;
   sessionName: string | null;
+  cliState: TCliState | null;
   selection: TWorkspaceTeamSelection;
 }
 
@@ -61,6 +64,7 @@ const toTabOption = (tab: ITab): IWorkspaceTeamTabOption => ({
   tabName: tab.name || tab.title || tab.panelType || tab.id,
   panelType: tab.panelType as TPanelType,
   sessionName: tab.sessionName,
+  cliState: tab.cliState,
 });
 
 const makeBaseAlias = (workspace: IWorkspace, index: number): string => {
@@ -174,6 +178,7 @@ const createMember = (
   tabName: tab?.tabName ?? null,
   panelType: tab?.panelType ?? null,
   sessionName: tab?.sessionName ?? null,
+  cliState: tab?.cliState ?? null,
   selection,
 });
 

@@ -2,6 +2,10 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { verifyCliToken } from '@/lib/cli-token';
 import { hasSession, sendBracketedPaste } from '@/lib/tmux';
 import {
+  AgentInputBlockedError,
+  assertAgentInputAvailable,
+} from '@/lib/agent-input-state';
+import {
   matchWorkspaceTeamMembers,
   resolveWorkspaceTeamContext,
   type IResolvedWorkspaceTeamMember,
@@ -11,8 +15,15 @@ interface ISendResult {
   alias: string;
   workspaceId: string;
   tabId: string | null;
-  status: 'sent' | 'unavailable' | 'not-running' | 'failed';
+  status: 'sent' | 'unavailable' | 'not-running' | 'input-occupied' | 'input-unavailable' | 'input-unknown' | 'failed';
 }
+
+const toFailureStatus = (error: unknown): ISendResult['status'] => {
+  if (!(error instanceof AgentInputBlockedError)) return 'failed';
+  if (error.inputState === 'typed') return 'input-occupied';
+  if (error.inputState === 'unavailable') return 'input-unavailable';
+  return 'input-unknown';
+};
 
 const buildTaskMessage = (
   groupName: string,
@@ -74,7 +85,8 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       });
       continue;
     }
-    if (!(await hasSession(worker.sessionName))) {
+    const workerSessionName = worker.sessionName;
+    if (!(await hasSession(workerSessionName))) {
       results.push({
         alias: worker.alias,
         workspaceId: worker.workspaceId,
@@ -85,8 +97,13 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     }
     try {
       await sendBracketedPaste(
-        worker.sessionName,
+        workerSessionName,
         buildTaskMessage(team.groupName, team.currentMember, worker, content.trim()),
+        () => assertAgentInputAvailable(
+          workerSessionName,
+          worker.panelType ?? undefined,
+          worker.cliState,
+        ),
       );
       results.push({
         alias: worker.alias,
@@ -94,12 +111,12 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         tabId: worker.tabId,
         status: 'sent',
       });
-    } catch {
+    } catch (error) {
       results.push({
         alias: worker.alias,
         workspaceId: worker.workspaceId,
         tabId: worker.tabId,
-        status: 'failed',
+        status: toFailureStatus(error),
       });
     }
   }

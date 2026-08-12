@@ -3,6 +3,7 @@ import { verifyCliToken } from '@/lib/cli-token';
 import { findTab } from '@/lib/cli-utils';
 import { hasSession, getPaneCurrentCommand } from '@/lib/tmux';
 import { getProviderByPanelType } from '@/lib/providers';
+import { detectAgentInputState } from '@/lib/agent-input-state';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== 'GET') {
@@ -33,10 +34,14 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       agentProviderId: provider?.id ?? null,
       agentSessionId,
       claudeSessionId: agentSessionId,
+      inputState: null,
     });
   }
 
-  const command = await getPaneCurrentCommand(found.tab.sessionName);
+  const [command, inputState] = await Promise.all([
+    getPaneCurrentCommand(found.tab.sessionName),
+    detectAgentInputState(found.tab.sessionName, found.tab.panelType),
+  ]);
   return res.status(200).json({
     tabId,
     workspaceId,
@@ -47,6 +52,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     agentSessionId,
     // Response key kept as `claudeSessionId` for back-compat with external CLI consumers.
     claudeSessionId: agentSessionId,
+    inputState,
   });
 };
 

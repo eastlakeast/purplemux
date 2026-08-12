@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { verifyCliToken } from '@/lib/cli-token';
 import { findTab } from '@/lib/cli-utils';
 import { capturePaneContent, hasSession } from '@/lib/tmux';
+import { detectAgentInputState } from '@/lib/agent-input-state';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== 'GET') {
@@ -24,8 +25,11 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   const alive = await hasSession(found.tab.sessionName);
   if (!alive) return res.status(409).json({ error: 'Tab session is not running' });
 
-  const content = await capturePaneContent(found.tab.sessionName);
-  return res.status(200).json({ content });
+  const [content, inputState] = await Promise.all([
+    capturePaneContent(found.tab.sessionName),
+    detectAgentInputState(found.tab.sessionName, found.tab.panelType),
+  ]);
+  return res.status(200).json({ content, inputState });
 };
 
 export default handler;
