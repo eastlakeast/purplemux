@@ -1,4 +1,5 @@
 import path from 'node:path';
+import os from 'node:os';
 import { isLocalFilePath } from '@/lib/local-file-links';
 
 export const LOCAL_FILE_REMOTE_ADDRESS_HEADER = 'x-pmux-remote-address';
@@ -43,6 +44,15 @@ export const resolveLocalFileRequestPath = (parts: string[]): string | null => {
   if (parts.length === 0) return null;
   const filePath = path.resolve('/', ...parts);
   return isLocalFilePath(filePath) ? filePath : null;
+};
+
+export const resolveLocalFilePath = (filePath: string, basePath?: string): string | null => {
+  const value = filePath.trim();
+  if (!isLocalFilePath(value)) return null;
+  if (value.startsWith('/')) return path.normalize(value);
+  if (value.startsWith('~/')) return path.resolve(os.homedir(), value.slice(2));
+  if (!basePath || !path.isAbsolute(basePath)) return null;
+  return path.resolve(basePath, value);
 };
 
 export const getLocalFileMime = (filePath: string): string =>

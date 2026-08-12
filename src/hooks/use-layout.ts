@@ -491,7 +491,15 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
     if (!layout || !workspaceId || isSplitting) return;
 
     const { localFileName, localFilePathToViewerUrl } = await import('@/lib/local-file-links');
-    const webUrl = new URL(localFilePathToViewerUrl(filePath), window.location.origin).toString();
+    const sourcePane = findPane(layout.root, sourcePaneId);
+    const sourceTab = sourcePane?.tabs.find((tab) => tab.id === sourcePane.activeTabId);
+    const basePath = sourceTab
+      ? useTabMetadataStore.getState().metadata[sourceTab.id]?.cwd ?? sourceTab.cwd
+      : undefined;
+    const webUrl = new URL(
+      localFilePathToViewerUrl(filePath, basePath),
+      window.location.origin,
+    ).toString();
     const name = localFileName(filePath);
     const targetPaneId = findAdjacentPaneId(layout.root, sourcePaneId);
 

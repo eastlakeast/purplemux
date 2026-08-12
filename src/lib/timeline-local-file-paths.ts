@@ -5,8 +5,8 @@ export interface ITimelineLocalFilePathSegment {
   filePath?: string;
 }
 
-const LOCAL_FILE_PATH_RE = /(^|[\s([{<])((?:\/tmp|\/private\/tmp|\/var\/folders|\/Users|\/Volumes)\/[^\s`"'<>)]*)/g;
-const TRAILING_PUNCTUATION_RE = /[.,;:!?]+$/;
+const PATH_TOKEN_RE = /(^|[\s([{<])([^\s`"'<>\])}]+)/g;
+const TRAILING_PUNCTUATION_RE = /[.,;:!?，。；：！？]+$/;
 
 export const splitTimelineLocalFilePaths = (
   value: string,
@@ -14,7 +14,7 @@ export const splitTimelineLocalFilePaths = (
   const segments: ITimelineLocalFilePathSegment[] = [];
   let cursor = 0;
 
-  for (const match of value.matchAll(LOCAL_FILE_PATH_RE)) {
+  for (const match of value.matchAll(PATH_TOKEN_RE)) {
     const prefix = match[1] ?? '';
     const rawPath = match[2] ?? '';
     if (!rawPath) continue;
