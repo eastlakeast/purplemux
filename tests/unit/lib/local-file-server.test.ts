@@ -14,11 +14,12 @@ describe('local-file-server', () => {
     expect(isLoopbackAddress('192.168.0.10')).toBe(false);
   });
 
-  it('resolves arbitrary absolute local roots', () => {
+  it('resolves viewable files at arbitrary absolute local roots', () => {
     expect(resolveLocalFileRequestPath(['tmp', 'docs', 'readme.md']))
       .toBe('/tmp/docs/readme.md');
-    expect(resolveLocalFileRequestPath(['tmp', '..', 'etc', 'passwd'])).toBe('/etc/passwd');
-    expect(resolveLocalFileRequestPath(['etc', 'passwd'])).toBe('/etc/passwd');
+    expect(resolveLocalFileRequestPath(['opt', 'docs', 'readme.md'])).toBe('/opt/docs/readme.md');
+    expect(resolveLocalFileRequestPath(['tmp', 'setup.exe'])).toBeNull();
+    expect(resolveLocalFileRequestPath(['etc', 'passwd'])).toBeNull();
   });
 
   it('resolves home and cwd-relative paths before serving them', () => {

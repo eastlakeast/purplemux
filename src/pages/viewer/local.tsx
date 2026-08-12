@@ -8,6 +8,7 @@ import {
   isLocalFilePath,
   localFileName,
   localFilePathToContentUrl,
+  localFilePathToViewerUrl,
 } from '@/lib/local-file-links';
 import { getLocalFileKind, localViewerUrlTransform } from '@/lib/local-file-viewer';
 import {
@@ -140,10 +141,19 @@ const LocalViewerPage = ({ resolvedPath }: ILocalViewerPageProps) => {
 export const getServerSideProps: GetServerSideProps<ILocalViewerPageProps> = async ({ query }) => {
   const { loadMessagesServer } = await import('@/lib/load-messages');
   const { resolveLocalFilePath } = await import('@/lib/local-file-server');
-  const messages = await loadMessagesServer();
   const filePath = typeof query.path === 'string' ? query.path : '';
   const basePath = typeof query.base === 'string' ? query.base : undefined;
-  return { props: { messages, resolvedPath: resolveLocalFilePath(filePath, basePath) ?? '' } };
+  const resolvedPath = resolveLocalFilePath(filePath, basePath) ?? '';
+  if (resolvedPath && resolvedPath !== filePath) {
+    return {
+      redirect: {
+        destination: localFilePathToViewerUrl(resolvedPath),
+        permanent: false,
+      },
+    };
+  }
+  const messages = await loadMessagesServer();
+  return { props: { messages, resolvedPath } };
 };
 
 export default LocalViewerPage;

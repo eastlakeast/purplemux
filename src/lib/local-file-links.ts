@@ -1,6 +1,17 @@
 const ROOTED_FILE_PATH_RE = /^(?:\/(?!\/)|~\/|\.\.?\/|\.[^/\\\s]+\/)[^\0]*$/;
 const NAMED_RELATIVE_FILE_PATH_RE = /^(?![a-z][a-z0-9+.-]*:\/\/)(?:[^/\\\s]+\/)+[^\0]*$/i;
-const BARE_FILE_PATH_RE = /^(?:\.[a-z0-9_-]+|[^/\\\s]+\.(?:avif|bmp|conf|css|csv|env|gif|htm|html|ico|ini|jpeg|jpg|js|json|jsonc|jsx|log|markdown|md|mdown|mjs|mkd|pdf|png|properties|sh|sql|svg|toml|ts|tsx|txt|webp|xml|yaml|yml))$/i;
+const BARE_FILE_PATH_RE = /^[^/\\\s]+$/;
+const VIEWABLE_EXTENSIONS = new Set([
+  'avif', 'bash', 'bmp', 'c', 'cc', 'conf', 'cpp', 'cs', 'css', 'csv', 'env', 'fish',
+  'geojson', 'gif', 'go', 'gql', 'graphql', 'groovy', 'h', 'hpp', 'htm', 'html', 'ico',
+  'ini', 'java', 'jpeg', 'jpg', 'js', 'json', 'jsonc', 'jsx', 'kt', 'kts', 'lock', 'log',
+  'lua', 'markdown', 'md', 'mdown', 'mjs', 'mkd', 'pdf', 'php', 'plist', 'png', 'properties',
+  'proto', 'py', 'rb', 'rs', 'sh', 'sql', 'svelte', 'svg', 'swift', 'toml', 'ts', 'tsx',
+  'txt', 'vue', 'webp', 'xml', 'yaml', 'yml', 'zsh',
+]);
+const VIEWABLE_EXTENSIONLESS_FILES = new Set([
+  'dockerfile', 'gemfile', 'license', 'makefile', 'procfile', 'readme',
+]);
 const APP_PATH_RE = /^\/(?:api|_next|viewer)(?:\/|$)/;
 const LOCALHOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const LOCAL_FILE_VIEWER_PATH = '/viewer/local';
@@ -25,9 +36,17 @@ const safeDecodeURIComponent = (value: string): string => {
 
 export const isLocalFilePath = (value: string): boolean => {
   const pathValue = stripSuffix(value.trim());
-  return ROOTED_FILE_PATH_RE.test(pathValue)
+  const hasPathShape = ROOTED_FILE_PATH_RE.test(pathValue)
     || NAMED_RELATIVE_FILE_PATH_RE.test(pathValue)
     || BARE_FILE_PATH_RE.test(pathValue);
+  if (!hasPathShape || pathValue.endsWith('/')) return false;
+
+  const fileName = pathValue.split('/').at(-1)?.toLowerCase() ?? '';
+  if (!fileName) return false;
+  if (/^\.[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/i.test(fileName)) return true;
+  if (VIEWABLE_EXTENSIONLESS_FILES.has(fileName)) return true;
+  const extension = fileName.includes('.') ? fileName.split('.').at(-1) ?? '' : '';
+  return VIEWABLE_EXTENSIONS.has(extension);
 };
 
 export const localFilePathToUrl = (filePath: string): string => {

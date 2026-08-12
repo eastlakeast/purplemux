@@ -27,9 +27,9 @@ describe('local-file-links', () => {
       .toBe('file:///Users/donghojo/out.html');
   });
 
-  it('accepts arbitrary absolute local paths for file URLs', () => {
+  it('accepts viewable files at arbitrary absolute local roots', () => {
     expect(localFileUrlFromHref('file:///tmp/aios-main.png')).toBe('file:///tmp/aios-main.png');
-    expect(localFileUrlFromHref('file:///etc/passwd')).toBe('file:///etc/passwd');
+    expect(localFileUrlFromHref('file:///opt/docs/readme.md')).toBe('file:///opt/docs/readme.md');
   });
 
   it('recognizes absolute, home-relative, and cwd-relative file paths', () => {
@@ -41,6 +41,17 @@ describe('local-file-links', () => {
     expect(isLocalFilePath('src/lib/local-file-links.ts')).toBe(true);
     expect(isLocalFilePath('README.md')).toBe(true);
     expect(isLocalFilePath('.env')).toBe(true);
+    expect(isLocalFilePath('.env.production')).toBe(true);
+    expect(isLocalFilePath('Dockerfile')).toBe(true);
+  });
+
+  it('rejects prose counters and files the viewer cannot display', () => {
+    expect(isLocalFilePath('Java/JAR')).toBe(false);
+    expect(isLocalFilePath('231/231')).toBe(false);
+    expect(isLocalFilePath('314/314')).toBe(false);
+    expect(isLocalFilePath('/tmp/AIOS-0.2.1-x64-setup.exe')).toBe(false);
+    expect(isLocalFilePath('/tmp/release.zip')).toBe(false);
+    expect(isLocalFilePath('/etc/passwd')).toBe(false);
   });
 
   it('leaves explicit app and remote links alone', () => {
