@@ -68,7 +68,7 @@ interface ITimelineViewProps {
 
 const RESUME_TOKEN_THRESHOLD = 100_000;
 const RESUME_IDLE_MINUTES = 70;
-const OVERFLOW_SENTINEL_ROOT_MARGIN = '0px 0px 4px 0px';
+const OVERFLOW_SENTINEL_MARGIN_PX = 4;
 
 const ElapsedTime = ({ since }: { since: number }) => {
   const [elapsed, setElapsed] = useState(0);
@@ -595,6 +595,15 @@ const TimelineView = ({
     setHasOverflowBelow(value);
   }, []);
 
+  const syncOverflowState = useCallback(() => {
+    const scrollEl = scrollRef.current;
+    const sentinel = bottomSentinelRef.current;
+    if (!scrollEl || !sentinel) return;
+    const rootBottom = scrollEl.getBoundingClientRect().bottom;
+    const sentinelTop = sentinel.getBoundingClientRect().top;
+    updateHasOverflowBelow(sentinelTop >= rootBottom + OVERFLOW_SENTINEL_MARGIN_PX);
+  }, [updateHasOverflowBelow]);
+
   const hasPendingUserMessage = entries.some((entry) => entry.type === 'user-message' && entry.pending === true);
 
   if (prevSessionId !== sessionId) {
@@ -733,9 +742,11 @@ const TimelineView = ({
     if (!scrollEl || !contentEl || !active) return;
     let frame = 0;
     const pinToBottom = () => {
+      const shouldPin = !hasOverflowBelowRef.current;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        if (!hasOverflowBelowRef.current) scrollToBottom('instant');
+        if (shouldPin) scrollToBottom('instant');
+        syncOverflowState();
       });
     };
     const ro = new ResizeObserver(pinToBottom);
@@ -746,7 +757,7 @@ const TimelineView = ({
       cancelAnimationFrame(frame);
       ro.disconnect();
     };
-  }, [active, scrollToBottom]);
+  }, [active, scrollToBottom, syncOverflowState]);
 
   useEffect(() => {
     const handleVisible = () => {
@@ -763,25 +774,6 @@ const TimelineView = ({
       window.removeEventListener('pageshow', handleVisible);
     };
   }, [scrollToBottom]);
-
-  const canObserveOverflow = !isLoading && !error && hasDisplayItems && !skipAnimation;
-  useEffect(() => {
-    if (!canObserveOverflow) return;
-    const scrollEl = scrollRef.current;
-    const sentinel = bottomSentinelRef.current;
-    if (!scrollEl || !sentinel) return;
-
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        const root = entry.rootBounds;
-        const target = entry.boundingClientRect;
-        updateHasOverflowBelow(!entry.isIntersecting && !!root && target.top >= root.bottom);
-      },
-      { root: scrollEl, threshold: 0, rootMargin: OVERFLOW_SENTINEL_ROOT_MARGIN },
-    );
-    io.observe(sentinel);
-    return () => io.disconnect();
-  }, [canObserveOverflow, updateHasOverflowBelow]);
 
   const handleScrollToBottom = useCallback(() => {
     updateHasOverflowBelow(false);
@@ -893,6 +885,7 @@ const TimelineView = ({
         tabIndex={0}
         role="log"
         aria-label={t('timelineAria')}
+        onScroll={syncOverflowState}
       >
         <div ref={contentRef} className="mx-auto max-w-content">
           {hasMore && <div ref={sentinelRef} className="h-px" />}
