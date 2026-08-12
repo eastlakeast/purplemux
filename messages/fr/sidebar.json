@@ -26,5 +26,7 @@
   "teamNoAgentTabs": "Ce groupe ne contient aucun onglet Claude Code ou Codex.",
   "teamDisable": "Désactiver l’équipe d’agents",
   "teamSaved": "Équipe d’agents enregistrée",
-  "teamSaveFailed": "Impossible d’enregistrer l’équipe d’agents"
+  "teamSaveFailed": "Impossible d’enregistrer l’équipe d’agents",
+  "moveTabToNewWorkspace": "Déplacer vers un nouvel espace",
+  "tabMoveFailed": "Impossible de déplacer l’onglet"
 }

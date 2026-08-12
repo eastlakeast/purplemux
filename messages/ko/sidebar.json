@@ -26,5 +26,7 @@
   "teamNoAgentTabs": "이 그룹에 Claude Code 또는 Codex 탭이 없습니다.",
   "teamDisable": "에이전트 팀 해제",
   "teamSaved": "에이전트 팀을 저장했습니다",
-  "teamSaveFailed": "에이전트 팀을 저장하지 못했습니다"
+  "teamSaveFailed": "에이전트 팀을 저장하지 못했습니다",
+  "moveTabToNewWorkspace": "새 Workspace로 이동",
+  "tabMoveFailed": "탭을 이동하지 못했습니다"
 }

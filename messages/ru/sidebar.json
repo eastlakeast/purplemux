@@ -26,5 +26,7 @@
   "teamNoAgentTabs": "В этой группе нет вкладок Claude Code или Codex.",
   "teamDisable": "Отключить команду агентов",
   "teamSaved": "Команда агентов сохранена",
-  "teamSaveFailed": "Не удалось сохранить команду агентов"
+  "teamSaveFailed": "Не удалось сохранить команду агентов",
+  "moveTabToNewWorkspace": "Переместить в новую рабочую область",
+  "tabMoveFailed": "Не удалось переместить вкладку"
 }

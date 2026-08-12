@@ -39,6 +39,7 @@ import useQuickPrompts from '@/hooks/use-quick-prompts';
 import useFileDrop from '@/hooks/use-file-drop';
 import { useAgentInstallCheck } from '@/hooks/use-agent-install-check';
 import PaneTabBar from '@/components/features/workspace/pane-tab-bar';
+import PaneTabSplitOverlay from '@/components/features/workspace/pane-tab-split-overlay';
 import { formatTabTitle, parseCurrentCommand, isShellProcess } from '@/lib/tab-title';
 import { isAppShortcut, isClearShortcut, isFocusInputShortcut, isShiftEnter } from '@/lib/keyboard-shortcuts';
 import useTerminalTheme from '@/hooks/use-terminal-theme';
@@ -47,6 +48,13 @@ import { dismissTab as dismissStatusTab } from '@/hooks/use-agent-status';
 import type { IAgentSessionEntry } from '@/hooks/use-agent-sessions';
 import useWorkspaceStore from '@/hooks/use-workspace-store';
 import { getOrchestratorTabId } from '@/lib/workspace-team-role';
+import {
+  getTabDragSourcePaneId,
+  getTabSplitSide,
+  hasTabDragData,
+  readTabDragData,
+  type TTabSplitSide,
+} from '@/lib/tab-drag-data';
 import {
   applyAgentCheckResult,
   isAgentPanelType,
@@ -123,6 +131,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
   const closePane = useLayoutStore((s) => s.closePane);
   const focusPane = useLayoutStore((s) => s.focusPane);
   const moveTab = useLayoutStore((s) => s.moveTab);
+  const splitTab = useLayoutStore((s) => s.splitTab);
   const renameTabInPane = useLayoutStore((s) => s.renameTabInPane);
   const reorderTabsInPane = useLayoutStore((s) => s.reorderTabsInPane);
   const updateTabPanelType = useLayoutStore((s) => s.updateTabPanelType);
@@ -138,7 +147,58 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
   const isAgentPanel = isClaudeCode || isCodex;
   const isWebBrowser = activePanelType === 'web-browser';
   const isDiff = activePanelType === 'diff';
+  const [tabSplitSide, setTabSplitSide] = useState<TTabSplitSide | null>(null);
   const { ensureAgentInstalled, installDialogs } = useAgentInstallCheck();
+
+  const handleTabSplitDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if ((event.target as Element).closest('[data-pane-tab-bar]')) {
+      setTabSplitSide(null);
+      return;
+    }
+    if (
+      tabs.length <= 1
+      || isSplitting
+      || !hasTabDragData(event.dataTransfer)
+      || getTabDragSourcePaneId(event.dataTransfer) !== paneId
+    ) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
+    setTabSplitSide(getTabSplitSide(
+      event.currentTarget.getBoundingClientRect(),
+      event.clientX,
+      event.clientY,
+    ));
+  }, [isSplitting, paneId, tabs.length]);
+
+  const handleTabSplitDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    const related = event.relatedTarget;
+    if (related instanceof Node && event.currentTarget.contains(related)) return;
+    setTabSplitSide(null);
+  }, []);
+
+  const handleTabSplitDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if ((event.target as Element).closest('[data-pane-tab-bar]')) {
+      setTabSplitSide(null);
+      return;
+    }
+    if (!tabSplitSide || getTabDragSourcePaneId(event.dataTransfer) !== paneId) return;
+    const payload = readTabDragData(event.dataTransfer);
+    event.preventDefault();
+    event.stopPropagation();
+    setTabSplitSide(null);
+    if (payload) void splitTab(paneId, payload.tabId, tabSplitSide);
+  }, [paneId, splitTab, tabSplitSide]);
+
+  useEffect(() => {
+    const reset = () => setTabSplitSide(null);
+    window.addEventListener('dragend', reset);
+    window.addEventListener('drop', reset);
+    return () => {
+      window.removeEventListener('dragend', reset);
+      window.removeEventListener('drop', reset);
+    };
+  }, []);
 
   const { theme: terminalTheme } = useTerminalTheme();
   const configFontSize = useConfigStore((s) => s.fontSize);
@@ -1133,7 +1193,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
   return (
     <div
       className={cn(
-        'flex h-full flex-col overflow-hidden',
+        'relative flex h-full flex-col overflow-hidden',
         paneCount > 1 && 'border',
         paneCount > 1 && isFocused ? 'border-focus-indicator' : 'border-transparent',
       )}
@@ -1148,9 +1208,15 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
       onClick={handleFocusPane}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
+      onDragEnterCapture={handleTabSplitDragOver}
+      onDragOverCapture={handleTabSplitDragOver}
+      onDragLeaveCapture={handleTabSplitDragLeave}
+      onDropCapture={handleTabSplitDrop}
     >
+      {tabSplitSide && <PaneTabSplitOverlay side={tabSplitSide} />}
       <PaneTabBar
         paneId={paneId}
+        workspaceId={layoutWsId ?? ''}
         tabs={tabs}
         activeTabId={activeTabId}
         tabTitles={tabTitles}

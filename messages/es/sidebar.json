@@ -26,5 +26,7 @@
   "teamNoAgentTabs": "Este grupo no tiene pestañas de Claude Code ni Codex.",
   "teamDisable": "Desactivar equipo de agentes",
   "teamSaved": "Equipo de agentes guardado",
-  "teamSaveFailed": "No se pudo guardar el equipo de agentes"
+  "teamSaveFailed": "No se pudo guardar el equipo de agentes",
+  "moveTabToNewWorkspace": "Mover a un espacio nuevo",
+  "tabMoveFailed": "No se pudo mover la pestaña"
 }

@@ -153,5 +153,6 @@
   "codexUpdateRunning": "Codex 업데이트 중...",
   "codexUpdateRunningHint": "잠시 걸릴 수 있습니다. 업데이트가 끝나면 Codex를 다시 시작합니다.",
   "codexUpdateSuccess": "업데이트가 완료되었습니다. Codex를 다시 시작합니다...",
-  "codexUpdateRestarting": "Codex 다시 시작 중"
+  "codexUpdateRestarting": "Codex 다시 시작 중",
+  "splitTabHere": "여기에 분할"
 }

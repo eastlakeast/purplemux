@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { nanoid } from 'nanoid';
-import { createSession, hasSession, killSession, resolveExistingDir, sendKeys, workspaceSessionName } from '@/lib/tmux';
+import { createSession, hasSession, killSession, renameSession, resolveExistingDir, sendKeys, workspaceSessionName } from '@/lib/tmux';
 import { broadcastSync } from '@/lib/sync-server';
 import { createLogger } from '@/lib/logger';
 import {
@@ -20,6 +20,8 @@ import type { TCliState } from '@/types/timeline';
 import type { IAgentProvider } from '@/lib/providers/types';
 import { claudeProvider } from '@/lib/providers/claude';
 import { defaultTabNameForPanelType, resolveTabNameForPanelTypeChange } from '@/lib/tab-name';
+import { moveTabAcrossLayouts, splitTabIntoPane } from '@/lib/layout-tab-transfer';
+import type { TTabSplitSide } from '@/lib/tab-drag-data';
 
 const log = createLogger('layout');
 
@@ -28,6 +30,7 @@ const BASE_DIR = path.join(os.homedir(), '.purplemux');
 interface ILayoutReconciler {
   reconcileWorkspaceTabs: (wsId: string, validTabIds: readonly string[]) => void;
   removeWorkspaceTabs: (wsId: string) => void;
+  moveTabWorkspace: (tabId: string, workspaceId: string, tmuxSession: string) => void;
 }
 
 const g = globalThis as unknown as {
@@ -689,6 +692,17 @@ export const splitPaneInLayout = async (
   return result;
 };
 
+export const splitTabInLayout = async (
+  wsId: string,
+  sourcePaneId: string,
+  tabId: string,
+  side: TTabSplitSide,
+): Promise<ILayoutData | null> =>
+  mutate(wsId, (layout) => {
+    const newPaneId = generatePaneId();
+    return splitTabIntoPane(layout, sourcePaneId, tabId, side, newPaneId) ? layout : null;
+  });
+
 export const closePaneInLayout = async (wsId: string, paneId: string): Promise<ILayoutData | null> => {
   let sessions: string[] = [];
 
@@ -769,6 +783,91 @@ export const moveTabBetweenPanes = async (
 
     layout.activePaneId = toPaneId;
     return layout;
+  });
+};
+
+export interface ITabWorkspaceLayoutTransferResult {
+  sourceLayout: ILayoutData;
+  targetLayout: ILayoutData;
+  targetPaneId: string;
+  sourceEmpty: boolean;
+}
+
+export const moveTabBetweenWorkspaces = async (
+  sourceWorkspaceId: string,
+  sourcePaneId: string,
+  tabId: string,
+  targetWorkspaceId: string,
+  targetPaneId?: string,
+): Promise<ITabWorkspaceLayoutTransferResult | null> => {
+  if (sourceWorkspaceId === targetWorkspaceId) return null;
+
+  return withLock(async () => {
+    const sourceFile = resolveLayoutFile(sourceWorkspaceId);
+    const targetFile = resolveLayoutFile(targetWorkspaceId);
+    const sourceOriginal = await readLayoutFile(sourceFile);
+    if (!sourceOriginal) return null;
+
+    const existingTarget = await readLayoutFile(targetFile);
+    const generatedTargetPaneId = generatePaneId();
+    const targetOriginal: ILayoutData = existingTarget ?? {
+      root: { type: 'pane', id: generatedTargetPaneId, tabs: [], activeTabId: null },
+      activePaneId: generatedTargetPaneId,
+      updatedAt: new Date().toISOString(),
+    };
+    const sourceLayout = structuredClone(sourceOriginal);
+    const targetLayout = structuredClone(targetOriginal);
+    const sourceTab = findPane(sourceLayout.root, sourcePaneId)?.tabs.find((tab) => tab.id === tabId);
+    if (!sourceTab) return null;
+
+    const oldSessionName = sourceTab.sessionName;
+    const moved = moveTabAcrossLayouts(
+      sourceLayout,
+      targetLayout,
+      sourcePaneId,
+      tabId,
+      targetPaneId,
+      (paneId) => workspaceSessionName(targetWorkspaceId, paneId, tabId),
+    );
+    if (!moved) return null;
+
+    let tmuxRenamed = false;
+    let statusMoved = false;
+    try {
+      if (moved.tab.panelType !== 'web-browser') {
+        tmuxRenamed = await renameSession(oldSessionName, moved.tab.sessionName);
+      }
+      targetLayout.updatedAt = new Date().toISOString();
+      sourceLayout.updatedAt = targetLayout.updatedAt;
+      await writeLayoutFile(targetLayout, targetFile);
+      g.__ptLayoutReconciler?.moveTabWorkspace(tabId, targetWorkspaceId, moved.tab.sessionName);
+      statusMoved = true;
+      await writeLayoutFile(sourceLayout, sourceFile);
+      syncWorkspaceDirectories(targetWorkspaceId, targetLayout.root);
+      syncWorkspaceDirectories(sourceWorkspaceId, sourceLayout.root);
+      return {
+        sourceLayout,
+        targetLayout,
+        targetPaneId: moved.targetPaneId,
+        sourceEmpty: moved.sourceEmpty,
+      };
+    } catch (err) {
+      log.error(`tab workspace transfer failed: ${err instanceof Error ? err.message : err}`);
+      if (statusMoved) {
+        g.__ptLayoutReconciler?.moveTabWorkspace(tabId, sourceWorkspaceId, oldSessionName);
+      }
+      if (existingTarget) {
+        await writeLayoutFile(existingTarget, targetFile).catch(() => {});
+      } else {
+        await fs.rm(resolveLayoutDir(targetWorkspaceId), { recursive: true, force: true }).catch(() => {});
+        clearLayoutCache(targetWorkspaceId);
+      }
+      await writeLayoutFile(sourceOriginal, sourceFile).catch(() => {});
+      if (tmuxRenamed) {
+        await renameSession(moved.tab.sessionName, oldSessionName).catch(() => {});
+      }
+      return null;
+    }
   });
 };
 

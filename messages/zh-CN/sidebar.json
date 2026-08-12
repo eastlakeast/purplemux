@@ -26,5 +26,7 @@
   "teamNoAgentTabs": "此分组中没有 Claude Code 或 Codex 标签页。",
   "teamDisable": "停用智能体团队",
   "teamSaved": "智能体团队已保存",
-  "teamSaveFailed": "无法保存智能体团队"
+  "teamSaveFailed": "无法保存智能体团队",
+  "moveTabToNewWorkspace": "移至新工作区",
+  "tabMoveFailed": "无法移动标签页"
 }

@@ -26,5 +26,7 @@
   "teamNoAgentTabs": "This group has no Claude Code or Codex tabs.",
   "teamDisable": "Disable agent team",
   "teamSaved": "Agent team saved",
-  "teamSaveFailed": "Failed to save agent team"
+  "teamSaveFailed": "Failed to save agent team",
+  "moveTabToNewWorkspace": "Move to new workspace",
+  "tabMoveFailed": "Failed to move tab"
 }

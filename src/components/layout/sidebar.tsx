@@ -5,9 +5,11 @@ import {
   ChevronsRight,
   Plus,
   FolderPlus,
+  FolderInput,
   Settings,
   LogOut,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import useTabStore from '@/hooks/use-tab-store';
 import { useNotificationCount, NotificationPanel } from '@/components/features/workspace/notification-sheet';
 import AppLogo from '@/components/layout/app-logo';
@@ -29,6 +31,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import type {
   ITab,
+  ILayoutData,
   IWorkspace,
   TWorkspaceGroupColor,
   TWorkspaceSidebarItem,
@@ -63,9 +66,23 @@ import {
 } from '@/lib/workspace-order';
 import { getWorkspaceGroupColorCss } from '@/lib/workspace-group-colors';
 import { isOrchestratorWorkspace } from '@/lib/workspace-team-role';
+import useWorkspaceLayoutStore from '@/hooks/use-workspace-layout-store';
+import { navigateToTab } from '@/hooks/use-layout';
+import {
+  clearActiveTabDragData,
+  getActiveTabDragData,
+  hasTabDragData,
+  readTabDragData,
+} from '@/lib/tab-drag-data';
 
 const MIN_WIDTH = 160;
 const MAX_WIDTH = 480;
+
+interface ITabTransferResponse {
+  sourceLayout: ILayoutData;
+  targetLayout: ILayoutData;
+  targetWorkspace: IWorkspace;
+}
 
 const handleLogout = async () => {
   await fetch('/api/auth/logout', { method: 'POST' });
@@ -138,6 +155,7 @@ const Sidebar = () => {
     index: number;
     insideGroupId?: string;
   } | null>(null);
+  const [tabDropTargetId, setTabDropTargetId] = useState<string | 'new' | null>(null);
 
   const [isDragging, setIsDragging] = useState(false);
   const isResizing = useRef(false);
@@ -215,6 +233,72 @@ const Sidebar = () => {
 
   const handleGroupColorChange = useCallback((groupId: string, color: TWorkspaceGroupColor) => {
     useWorkspaceStore.getState().updateGroupColor(groupId, color);
+  }, []);
+
+  const handleTabTransfer = useCallback(async (
+    event: React.DragEvent,
+    targetWorkspaceId?: string,
+  ) => {
+    const payload = readTabDragData(event.dataTransfer) ?? getActiveTabDragData();
+    event.preventDefault();
+    event.stopPropagation();
+    setTabDropTargetId(null);
+    clearActiveTabDragData();
+    if (!payload || targetWorkspaceId === payload.sourceWorkspaceId) return;
+
+    try {
+      const res = await fetch('/api/layout/tab-transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          targetWorkspaceId,
+          createWorkspace: !targetWorkspaceId,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const result = await res.json() as ITabTransferResponse;
+      const layoutStore = useWorkspaceLayoutStore.getState();
+      layoutStore.setLayout(payload.sourceWorkspaceId, result.sourceLayout);
+      layoutStore.setLayout(result.targetWorkspace.id, result.targetLayout);
+      await useWorkspaceStore.getState().fetchWorkspaces();
+      navigateToTab(result.targetWorkspace.id, payload.tabId);
+    } catch {
+      toast.error(t('tabMoveFailed'));
+    }
+  }, [t]);
+
+  const handleTabTransferDragOver = useCallback((
+    event: React.DragEvent,
+    targetId: string | 'new',
+  ): boolean => {
+    if (!hasTabDragData(event.dataTransfer)) return false;
+    const payload = getActiveTabDragData();
+    if (targetId !== 'new' && payload?.sourceWorkspaceId === targetId) {
+      setTabDropTargetId(null);
+      return true;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
+    setTabDropTargetId(targetId);
+    return true;
+  }, []);
+
+  const handleTabTransferDragLeave = useCallback((event: React.DragEvent) => {
+    const related = event.relatedTarget;
+    if (related instanceof Node && event.currentTarget.contains(related)) return;
+    setTabDropTargetId(null);
+  }, []);
+
+  useEffect(() => {
+    const reset = () => setTabDropTargetId(null);
+    window.addEventListener('dragend', reset);
+    window.addEventListener('drop', reset);
+    return () => {
+      window.removeEventListener('dragend', reset);
+      window.removeEventListener('drop', reset);
+    };
   }, []);
 
   const handleDeleteRequest = useCallback(
@@ -435,8 +519,19 @@ const Sidebar = () => {
         draggable
         onDragStart={(e) => handleWorkspaceDragStart(e, workspace.id)}
         onDragEnd={handleDragEnd}
-        onDragOver={(e) => handleItemDragOver(e, parentGroupId, index)}
-        onDrop={handleDrop}
+        onDragOver={(e) => {
+          if (!handleTabTransferDragOver(e, workspace.id)) {
+            handleItemDragOver(e, parentGroupId, index);
+          }
+        }}
+        onDragLeave={handleTabTransferDragLeave}
+        onDrop={(e) => {
+          if (hasTabDragData(e.dataTransfer)) {
+            void handleTabTransfer(e, workspace.id);
+          } else {
+            handleDrop(e);
+          }
+        }}
         style={{
           opacity: fadingOutIds.has(workspace.id) ? 0 : undefined,
           transition: 'opacity 150ms ease-out',
@@ -447,6 +542,7 @@ const Sidebar = () => {
           isActive={workspace.id === activeWorkspaceId && router.pathname === '/' && !activeWebviewId}
           isDeleting={deletingIds.has(workspace.id)}
           isOrchestrator={isOrchestratorWorkspace(groups, workspace.id)}
+          isTabDropTarget={tabDropTargetId === workspace.id}
           shortcutLabel={visibleIndex >= 0 && visibleIndex < 8
             ? `⌘${visibleIndex + 1}`
             : visibleIndex === visibleWorkspaces.length - 1
@@ -655,13 +751,21 @@ const Sidebar = () => {
           {sidebarTab === 'workspace' && (
             <div className="relative flex h-9 items-stretch">
               <button
-                className="flex flex-1 items-center gap-2 px-3 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent disabled:opacity-50"
+                className={cn(
+                  'flex flex-1 items-center gap-2 px-3 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent disabled:opacity-50',
+                  tabDropTargetId === 'new' && 'bg-accent text-foreground ring-1 ring-inset ring-focus-indicator',
+                )}
                 onClick={handleCreateWorkspace}
+                onDragOver={(e) => handleTabTransferDragOver(e, 'new')}
+                onDragLeave={handleTabTransferDragLeave}
+                onDrop={(e) => void handleTabTransfer(e)}
                 disabled={isCreating}
                 aria-label={t('addWorkspace')}
               >
-                <Plus className="h-3.5 w-3.5" />
-                Workspace
+                {tabDropTargetId === 'new'
+                  ? <FolderInput className="h-3.5 w-3.5" />
+                  : <Plus className="h-3.5 w-3.5" />}
+                {tabDropTargetId === 'new' ? t('moveTabToNewWorkspace') : 'Workspace'}
               </button>
               <ShortcutKey
                 mac="⌘N"

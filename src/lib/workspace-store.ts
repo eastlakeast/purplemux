@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { nanoid } from 'nanoid';
-import { listSessions, killSession } from '@/lib/tmux';
+import { listSessions, killSession, resolveExistingDir } from '@/lib/tmux';
 import { createLogger } from '@/lib/logger';
 import { broadcastSync } from '@/lib/sync-server';
 import {
@@ -14,7 +14,9 @@ import {
   crossCheckLayout,
   collectAllTabs,
   createDefaultLayout,
+  moveTabBetweenWorkspaces,
 } from '@/lib/layout-store';
+import type { ITabWorkspaceLayoutTransferResult } from '@/lib/layout-store';
 import type { ICreateLayoutOptions } from '@/lib/layout-store';
 import { listProviders } from '@/lib/providers/registry';
 import {
@@ -148,6 +150,38 @@ const cleanupWorkspaceTeamReferences = (data: IWorkspacesData): void => {
     }
     if (Object.keys(group.team.workerTabOverrides).length === 0) {
       delete group.team.workerTabOverrides;
+    }
+  }
+};
+
+const relocateWorkspaceTeamTab = (
+  data: IWorkspacesData,
+  tabId: string,
+  sourceWorkspaceId: string,
+  targetWorkspaceId: string,
+): void => {
+  const targetWorkspace = data.workspaces.find((workspace) => workspace.id === targetWorkspaceId);
+  if (!targetWorkspace) return;
+  const groups = data.groups ?? [];
+
+  for (const group of groups) {
+    const team = group.team;
+    if (!team) continue;
+    const targetIsMember = workspaceBelongsToGroupTree(targetWorkspace, groups, group.id);
+    if (
+      team.orchestrator.workspaceId === sourceWorkspaceId
+      && team.orchestrator.tabId === tabId
+    ) {
+      if (!targetIsMember) {
+        delete group.team;
+        continue;
+      }
+      team.orchestrator.workspaceId = targetWorkspaceId;
+    }
+
+    if (team.workerTabOverrides?.[sourceWorkspaceId] === tabId) {
+      delete team.workerTabOverrides[sourceWorkspaceId];
+      if (targetIsMember) team.workerTabOverrides[targetWorkspaceId] = tabId;
     }
   }
 };
@@ -409,6 +443,106 @@ export const createWorkspace = async (directory: string, name?: string, layoutOp
 
     log.debug(`Created: ${wsId} (${wsName}, ${directory})`);
     return workspace;
+  });
+
+export interface IWorkspaceTabTransferResult extends ITabWorkspaceLayoutTransferResult {
+  targetWorkspace: IWorkspace;
+  sourceWorkspaceRemoved: boolean;
+}
+
+const finalizeWorkspaceTabTransfer = async (
+  data: IWorkspacesData,
+  sourceWorkspaceId: string,
+  targetWorkspace: IWorkspace,
+  tabId: string,
+  transfer: ITabWorkspaceLayoutTransferResult,
+): Promise<IWorkspaceTabTransferResult> => {
+  relocateWorkspaceTeamTab(data, tabId, sourceWorkspaceId, targetWorkspace.id);
+  if (transfer.sourceEmpty) {
+    data.workspaces = data.workspaces.filter((workspace) => workspace.id !== sourceWorkspaceId);
+    if (data.activeWorkspaceId === sourceWorkspaceId) data.activeWorkspaceId = targetWorkspace.id;
+  }
+  normalizeWorkspaceOrder(data);
+  await writeWorkspacesFile(data);
+  if (transfer.sourceEmpty) await removeLayoutFile(sourceWorkspaceId);
+  return {
+    ...transfer,
+    targetWorkspace,
+    sourceWorkspaceRemoved: transfer.sourceEmpty,
+  };
+};
+
+export const transferTabToWorkspace = async (
+  sourceWorkspaceId: string,
+  sourcePaneId: string,
+  tabId: string,
+  targetWorkspaceId: string,
+): Promise<IWorkspaceTabTransferResult | null> =>
+  withLock(async () => {
+    const data = (await readWorkspacesFile()) ?? emptyState();
+    const sourceWorkspace = data.workspaces.find((workspace) => workspace.id === sourceWorkspaceId);
+    const targetWorkspace = data.workspaces.find((workspace) => workspace.id === targetWorkspaceId);
+    if (!sourceWorkspace || !targetWorkspace || sourceWorkspaceId === targetWorkspaceId) return null;
+
+    const transfer = await moveTabBetweenWorkspaces(
+      sourceWorkspaceId,
+      sourcePaneId,
+      tabId,
+      targetWorkspaceId,
+    );
+    if (!transfer) return null;
+    return finalizeWorkspaceTabTransfer(data, sourceWorkspaceId, targetWorkspace, tabId, transfer);
+  });
+
+export const transferTabToNewWorkspace = async (
+  sourceWorkspaceId: string,
+  sourcePaneId: string,
+  tabId: string,
+): Promise<IWorkspaceTabTransferResult | null> =>
+  withLock(async () => {
+    const data = (await readWorkspacesFile()) ?? emptyState();
+    const sourceWorkspace = data.workspaces.find((workspace) => workspace.id === sourceWorkspaceId);
+    if (!sourceWorkspace) return null;
+
+    const sourceLayout = await readLayoutFile(resolveLayoutFile(sourceWorkspaceId));
+    const sourceTab = sourceLayout
+      ? collectAllTabs(sourceLayout.root).find((tab) => tab.id === tabId)
+      : null;
+    if (!sourceTab) return null;
+
+    const directory = await resolveExistingDir(sourceTab.cwd ?? sourceWorkspace.directories[0]);
+    const targetWorkspace: IWorkspace = {
+      id: `ws-${nanoid(6)}`,
+      name: nextWorkspaceName(data.workspaces),
+      directories: [directory],
+    };
+    data.workspaces.push(targetWorkspace);
+    normalizeWorkspaceOrder(data);
+    await writeWorkspacesFile(data);
+
+    const transfer = await moveTabBetweenWorkspaces(
+      sourceWorkspaceId,
+      sourcePaneId,
+      tabId,
+      targetWorkspace.id,
+    );
+    if (!transfer) {
+      data.workspaces = data.workspaces.filter((workspace) => workspace.id !== targetWorkspace.id);
+      normalizeWorkspaceOrder(data);
+      await writeWorkspacesFile(data);
+      await removeLayoutFile(targetWorkspace.id).catch(() => {});
+      return null;
+    }
+
+    const result = await finalizeWorkspaceTabTransfer(
+      data,
+      sourceWorkspaceId,
+      targetWorkspace,
+      tabId,
+      transfer,
+    );
+    await writeWorkspacePrompts(targetWorkspace);
+    return result;
   });
 
 export const deleteWorkspace = async (workspaceId: string): Promise<boolean> =>
