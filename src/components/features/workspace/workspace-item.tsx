@@ -24,6 +24,7 @@ interface IWorkspaceItemProps {
   isActive: boolean;
   isDeleting: boolean;
   isOrchestrator: boolean;
+  isTabDropTarget?: boolean;
   shortcutLabel?: string;
   showShortcut: boolean;
   tabs?: ITab[];
@@ -37,6 +38,7 @@ const WorkspaceItem = ({
   isActive,
   isDeleting,
   isOrchestrator,
+  isTabDropTarget = false,
   shortcutLabel,
   showShortcut,
   tabs,
@@ -97,6 +99,7 @@ const WorkspaceItem = ({
           isActive
             ? 'border-l-focus-indicator bg-accent text-foreground'
             : 'border-l-transparent text-muted-foreground hover:bg-sidebar-accent',
+          isTabDropTarget && 'border-l-focus-indicator bg-accent text-foreground ring-1 ring-inset ring-focus-indicator',
         )}
         style={{
           opacity: isDeleting ? 0.5 : 1,

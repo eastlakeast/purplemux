@@ -26,5 +26,7 @@
   "teamNoAgentTabs": "此群組中沒有 Claude Code 或 Codex 分頁。",
   "teamDisable": "停用 AI 代理團隊",
   "teamSaved": "已儲存 AI 代理團隊",
-  "teamSaveFailed": "無法儲存 AI 代理團隊"
+  "teamSaveFailed": "無法儲存 AI 代理團隊",
+  "moveTabToNewWorkspace": "移至新工作區",
+  "tabMoveFailed": "無法移動分頁"
 }

@@ -1,14 +1,20 @@
 import { useState, useRef, useCallback } from 'react';
 import type { ITab } from '@/types/terminal';
+import {
+  clearActiveTabDragData,
+  getTabDragSourcePaneId,
+  writeTabDragData,
+} from '@/lib/tab-drag-data';
 
 interface IUseTabDragOptions {
   paneId: string;
+  workspaceId: string;
   sortedTabs: ITab[];
   onReorderTabs: (tabIds: string[]) => void;
   onMoveTab: (tabId: string, fromPaneId: string, toIndex: number) => void;
 }
 
-const useTabDrag = ({ paneId, sortedTabs, onReorderTabs, onMoveTab }: IUseTabDragOptions) => {
+const useTabDrag = ({ paneId, workspaceId, sortedTabs, onReorderTabs, onMoveTab }: IUseTabDragOptions) => {
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
   const [isDragOverFromOther, setIsDragOverFromOther] = useState(false);
@@ -71,9 +77,7 @@ const useTabDrag = ({ paneId, sortedTabs, onReorderTabs, onMoveTab }: IUseTabDra
   const handleTabBarDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     dragEnterCountRef.current++;
-    const types = Array.from(e.dataTransfer.types);
-    const sourcePaneType = types.find((t) => t.startsWith('application/x-pane/'));
-    const sourcePaneId = sourcePaneType?.replace('application/x-pane/', '') ?? null;
+    const sourcePaneId = getTabDragSourcePaneId(e.dataTransfer);
     if (sourcePaneId !== null && sourcePaneId !== paneId) {
       setIsDragOverFromOther(true);
     }
@@ -90,9 +94,11 @@ const useTabDrag = ({ paneId, sortedTabs, onReorderTabs, onMoveTab }: IUseTabDra
 
   const startDrag = useCallback((e: React.DragEvent, tabId: string) => {
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/tab-id', tabId);
-    e.dataTransfer.setData('text/pane-id', paneId);
-    e.dataTransfer.setData(`application/x-pane/${paneId}`, '');
+    writeTabDragData(e.dataTransfer, {
+      tabId,
+      sourcePaneId: paneId,
+      sourceWorkspaceId: workspaceId,
+    });
 
     const ghost = e.currentTarget.cloneNode(true) as HTMLElement;
     ghost.querySelector('[aria-label="탭 닫기"]')?.remove();
@@ -104,9 +110,10 @@ const useTabDrag = ({ paneId, sortedTabs, onReorderTabs, onMoveTab }: IUseTabDra
     requestAnimationFrame(() => ghost.remove());
 
     setDraggedTabId(tabId);
-  }, [paneId]);
+  }, [paneId, workspaceId]);
 
   const endDrag = useCallback(() => {
+    clearActiveTabDragData();
     setDraggedTabId(null);
     setDropTarget(null);
   }, []);

@@ -26,5 +26,7 @@
   "teamNoAgentTabs": "このグループには Claude Code または Codex タブがありません。",
   "teamDisable": "エージェントチームを無効化",
   "teamSaved": "エージェントチームを保存しました",
-  "teamSaveFailed": "エージェントチームを保存できませんでした"
+  "teamSaveFailed": "エージェントチームを保存できませんでした",
+  "moveTabToNewWorkspace": "新しいワークスペースへ移動",
+  "tabMoveFailed": "タブを移動できませんでした"
 }

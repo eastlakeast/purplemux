@@ -12,6 +12,7 @@ import AgentModeSwitcher from '@/components/features/workspace/agent-mode-switch
 
 interface IPaneTabBarProps {
   paneId: string;
+  workspaceId: string;
   tabs: ITab[];
   activeTabId: string | null;
   tabTitles?: Record<string, string>;
@@ -36,6 +37,7 @@ interface IPaneTabBarProps {
 
 const PaneTabBar = ({
   paneId,
+  workspaceId,
   tabs,
   activeTabId,
   tabTitles,
@@ -75,7 +77,7 @@ const PaneTabBar = ({
     startDrag,
     endDrag,
     clearDropTarget,
-  } = useTabDrag({ paneId, sortedTabs, onReorderTabs, onMoveTab });
+  } = useTabDrag({ paneId, workspaceId, sortedTabs, onReorderTabs, onMoveTab });
 
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
@@ -156,6 +158,7 @@ const PaneTabBar = ({
 
   return (
     <div
+      data-pane-tab-bar
       className={cn(
         'flex h-[36px] shrink-0 items-stretch border-b border-border transition-colors',
         isDragOverFromOther ? 'bg-accent-color/10' : 'bg-background',

@@ -160,6 +160,17 @@ export const hasSession = async (name: string): Promise<boolean> => {
   }
 };
 
+export const renameSession = async (currentName: string, nextName: string): Promise<boolean> => {
+  if (currentName === nextName || !(await hasSession(currentName))) return false;
+  await execFile(
+    'tmux',
+    ['-L', TMUX_SOCKET, 'rename-session', '-t', currentName, nextName],
+    { timeout: CMD_TIMEOUT },
+  );
+  log.debug(`tmux session renamed: ${currentName} → ${nextName}`);
+  return true;
+};
+
 // tmux auto-cleans dead sessions when remain-on-exit is not set, no extra handling needed
 export const cleanDeadSessions = async (): Promise<void> => {};
 

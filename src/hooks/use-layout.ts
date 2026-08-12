@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { toast } from 'sonner';
 import { t } from '@/lib/i18n';
 import type { IDiffSettings, ILayoutData, ITab, IPaneNode, TPanelType } from '@/types/terminal';
+import type { TTabSplitSide } from '@/lib/tab-drag-data';
 import { clearInputDraft } from '@/hooks/use-web-input';
 import useTabStore from '@/hooks/use-tab-store';
 import useWorkspaceStore from '@/hooks/use-workspace-store';
@@ -95,6 +96,7 @@ interface ILayoutState {
   setLayout: (data: ILayoutData) => void;
   fetchLayout: (wsId?: string | null, preserveActive?: boolean) => Promise<void>;
   splitPane: (paneId: string, orientation: 'horizontal' | 'vertical') => Promise<void>;
+  splitTab: (paneId: string, tabId: string, side: TTabSplitSide) => Promise<void>;
   closePane: (paneId: string) => Promise<void>;
   focusPane: (paneId: string) => void;
   updateRatio: (path: number[], ratio: number) => void;
@@ -356,6 +358,31 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
       toast.error(t('terminal', 'splitFailed'));
     } finally {
       set((s) => ({ isSplitting: false, canSplit: (s.paneCount) < 10 }));
+    }
+  },
+
+  splitTab: async (paneId, tabId, side) => {
+    const { layout, isSplitting, workspaceId } = get();
+    if (!layout || isSplitting || collectPanes(layout.root).length >= 10) return;
+    const pane = findPane(layout.root, paneId);
+    if (!pane || pane.tabs.length <= 1 || !pane.tabs.some((tab) => tab.id === tabId)) return;
+
+    set({ isSplitting: true, canSplit: false });
+    try {
+      const res = await fetch(
+        wsQuery(`/api/layout/pane/${paneId}/tabs/${tabId}/split`, workspaceId),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ side }),
+        },
+      );
+      if (!res.ok) throw new Error();
+      applyLayout(set, get, await res.json() as ILayoutData);
+    } catch {
+      toast.error(t('terminal', 'splitFailed'));
+    } finally {
+      set((state) => ({ isSplitting: false, canSplit: state.paneCount < 10 }));
     }
   },
 
@@ -943,6 +970,7 @@ const useLayout = ({ workspaceId, onFetchError }: { workspaceId: string | null; 
     paneCount: s.paneCount,
     canSplit: s.canSplit,
     splitPane: s.splitPane,
+    splitTab: s.splitTab,
     closePane: s.closePane,
     focusPane: s.focusPane,
     updateRatio: s.updateRatio,

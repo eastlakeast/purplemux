@@ -26,5 +26,7 @@
   "teamNoAgentTabs": "Diese Gruppe enthält keine Claude Code- oder Codex-Tabs.",
   "teamDisable": "Agententeam deaktivieren",
   "teamSaved": "Agententeam gespeichert",
-  "teamSaveFailed": "Agententeam konnte nicht gespeichert werden"
+  "teamSaveFailed": "Agententeam konnte nicht gespeichert werden",
+  "moveTabToNewWorkspace": "In neuen Arbeitsbereich verschieben",
+  "tabMoveFailed": "Tab konnte nicht verschoben werden"
 }

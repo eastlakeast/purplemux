@@ -26,5 +26,7 @@
   "teamNoAgentTabs": "Bu grupta Claude Code veya Codex sekmesi yok.",
   "teamDisable": "Ajan ekibini devre dışı bırak",
   "teamSaved": "Ajan ekibi kaydedildi",
-  "teamSaveFailed": "Ajan ekibi kaydedilemedi"
+  "teamSaveFailed": "Ajan ekibi kaydedilemedi",
+  "moveTabToNewWorkspace": "Yeni çalışma alanına taşı",
+  "tabMoveFailed": "Sekme taşınamadı"
 }

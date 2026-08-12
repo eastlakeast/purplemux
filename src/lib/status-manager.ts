@@ -986,6 +986,14 @@ class StatusManager {
     }
   }
 
+  moveTabWorkspace(tabId: string, workspaceId: string, tmuxSession: string): void {
+    const entry = this.tabs.get(tabId);
+    if (!entry) return;
+    entry.workspaceId = workspaceId;
+    entry.tmuxSession = tmuxSession;
+    this.broadcastUpdate(tabId, entry);
+  }
+
   registerTab(tabId: string, entry: ITabStatusEntry): void {
     this.tabs.set(tabId, entry);
     this.broadcastUpdate(tabId, entry);
@@ -1344,6 +1352,8 @@ export const getStatusManager = (): StatusManager => {
     setLayoutReconciler({
       reconcileWorkspaceTabs: (wsId, validTabIds) => manager.reconcileWorkspaceTabs(wsId, validTabIds),
       removeWorkspaceTabs: (wsId) => manager.removeWorkspaceTabs(wsId),
+      moveTabWorkspace: (tabId, workspaceId, tmuxSession) =>
+        manager.moveTabWorkspace(tabId, workspaceId, tmuxSession),
     });
   }
   return g.__ptStatusManager;

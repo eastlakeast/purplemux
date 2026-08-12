@@ -26,5 +26,7 @@
   "teamNoAgentTabs": "Este grupo não possui abas do Claude Code ou Codex.",
   "teamDisable": "Desativar equipe de agentes",
   "teamSaved": "Equipe de agentes salva",
-  "teamSaveFailed": "Não foi possível salvar a equipe de agentes"
+  "teamSaveFailed": "Não foi possível salvar a equipe de agentes",
+  "moveTabToNewWorkspace": "Mover para novo workspace",
+  "tabMoveFailed": "Não foi possível mover a aba"
 }
