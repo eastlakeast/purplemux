@@ -29,6 +29,15 @@ interface IPidFileData {
   sessionId: string;
   cwd: string;
   startedAt: number;
+  kind?: string;
+  jobId?: string;
+  parkedJobId?: string;
+  updatedAt?: number;
+}
+
+interface IPidFileRecord {
+  filePath: string;
+  data: IPidFileData;
 }
 
 const MAX_SANITIZED_LENGTH = 200;
@@ -74,6 +83,26 @@ const readPidFile = async (filePath: string): Promise<IPidFileData | null> => {
   } catch {
     return null;
   }
+};
+
+const readPidFileRecord = async (filePath: string): Promise<IPidFileRecord | null> => {
+  const data = await readPidFile(filePath);
+  return data ? { filePath, data } : null;
+};
+
+const orderSessionCandidates = (
+  records: IPidFileRecord[],
+  childPidSet: Set<number>,
+): IPidFileRecord[] => {
+  const interactive = records.filter(({ data }) => childPidSet.has(data.pid));
+  const parkedJobIds = new Set(
+    interactive.flatMap(({ data }) => data.parkedJobId ? [data.parkedJobId] : []),
+  );
+  const parked = records
+    .filter(({ data }) => data.kind === 'bg' && !!data.jobId && parkedJobIds.has(data.jobId))
+    .sort((a, b) => (b.data.updatedAt ?? b.data.startedAt) - (a.data.updatedAt ?? a.data.startedAt));
+
+  return [...parked, ...interactive.filter((record) => !parked.includes(record))];
 };
 
 const findJsonlPath = async (projectDir: string, sessionId: string): Promise<string | null> => {
@@ -134,22 +163,35 @@ export const detectActiveSession = async (panePid: number, preloadedChildPids?: 
   const childPidSet = new Set(allPids);
 
   try {
-    const pidFiles = await fs.readdir(SESSIONS_DIR);
-    const jsonFiles = pidFiles.filter((f) => f.endsWith('.json'));
+    let records = (await Promise.all(
+      allPids.map((pid) => readPidFileRecord(path.join(SESSIONS_DIR, `${pid}.json`))),
+    )).filter((record): record is IPidFileRecord => record !== null);
 
-    for (const file of jsonFiles) {
-      const data = await readPidFile(path.join(SESSIONS_DIR, file));
-      if (!data) continue;
-      if (!childPidSet.has(data.pid)) continue;
+    if (records.length === 0 || records.some(({ data }) => data.parkedJobId)) {
+      const knownPaths = new Set(records.map(({ filePath }) => filePath));
+      const pidFiles = await fs.readdir(SESSIONS_DIR);
+      const additional = await Promise.all(
+        pidFiles
+          .filter((file) => file.endsWith('.json'))
+          .map((file) => path.join(SESSIONS_DIR, file))
+          .filter((filePath) => !knownPaths.has(filePath))
+          .map(readPidFileRecord),
+      );
+      records = [
+        ...records,
+        ...additional.filter((record): record is IPidFileRecord => record !== null),
+      ];
+    }
 
+    for (const { filePath, data } of orderSessionCandidates(records, childPidSet)) {
       const processArgs = await getProcessArgs(data.pid);
       if (processArgs === null) {
-        try { await fs.unlink(path.join(SESSIONS_DIR, file)); } catch {}
+        try { await fs.unlink(filePath); } catch {}
         continue;
       }
 
       if (!processArgs.includes('claude')) {
-        try { await fs.unlink(path.join(SESSIONS_DIR, file)); } catch {}
+        try { await fs.unlink(filePath); } catch {}
         continue;
       }
 
@@ -158,7 +200,7 @@ export const detectActiveSession = async (panePid: number, preloadedChildPids?: 
       let jsonlPath = await findJsonlPath(projectDir, data.sessionId);
       let effectiveSessionId = data.sessionId;
 
-      if (!jsonlPath) {
+      if (!jsonlPath && data.kind !== 'bg') {
         const resumeMatch = processArgs.match(/--resume\s+([0-9a-f-]{36})/);
         if (resumeMatch) {
           const resumeSessionId = resumeMatch[1];
