@@ -1,4 +1,5 @@
 import { splitTimelineLocalFilePaths } from '@/lib/timeline-local-file-paths';
+import { localFilePathToViewerUrl } from '@/lib/local-file-links';
 
 interface IMarkdownNode {
   type?: string;
@@ -15,7 +16,7 @@ const splitLocalFilePaths = (value: string): IMarkdownNode[] | null => {
   return segments.map(({ value: segmentValue, filePath }) => filePath
     ? {
         type: 'link',
-        url: filePath,
+        url: localFilePathToViewerUrl(filePath),
         children: [{ type: 'text', value: segmentValue }],
       }
     : { type: 'text', value: segmentValue });
@@ -27,7 +28,7 @@ const inlineCodeLocalFileLink = (node: IMarkdownNode): IMarkdownNode | null => {
   if (segments?.length !== 1 || segments[0].filePath !== node.value) return null;
   return {
     type: 'link',
-    url: node.value,
+    url: localFilePathToViewerUrl(node.value),
     children: [node],
   };
 };

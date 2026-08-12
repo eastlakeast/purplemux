@@ -27,15 +27,25 @@ describe('local-file-links', () => {
       .toBe('file:///Users/donghojo/out.html');
   });
 
-  it('allows only known local file roots for file URLs', () => {
+  it('accepts arbitrary absolute local paths for file URLs', () => {
     expect(localFileUrlFromHref('file:///tmp/aios-main.png')).toBe('file:///tmp/aios-main.png');
-    expect(localFileUrlFromHref('file:///etc/passwd')).toBeNull();
+    expect(localFileUrlFromHref('file:///etc/passwd')).toBe('file:///etc/passwd');
   });
 
-  it('leaves app-relative and remote links alone', () => {
+  it('recognizes absolute, home-relative, and cwd-relative file paths', () => {
+    expect(isLocalFilePath('/workspace/project/file.md')).toBe(true);
+    expect(isLocalFilePath('~/Documents/notes.md')).toBe(true);
+    expect(isLocalFilePath('./screens/mockup.png')).toBe(true);
+    expect(isLocalFilePath('../screens/mockup.png')).toBe(true);
+    expect(isLocalFilePath('.note/ddd.md')).toBe(true);
+    expect(isLocalFilePath('src/lib/local-file-links.ts')).toBe(true);
+    expect(isLocalFilePath('README.md')).toBe(true);
+    expect(isLocalFilePath('.env')).toBe(true);
+  });
+
+  it('leaves explicit app and remote links alone', () => {
     expect(localFileUrlFromHref('/api/timeline/entries')).toBeNull();
     expect(localFileUrlFromHref('https://example.com/tmp/a.png')).toBeNull();
-    expect(isLocalFilePath('/workspace/project/file.md')).toBe(false);
   });
 
   it('creates internal content and viewer URLs', () => {
@@ -43,6 +53,8 @@ describe('local-file-links', () => {
       .toBe('/api/local-file/Users/donghojo/My%20Notes/read%20me.md');
     expect(localFilePathToViewerUrl('/tmp/read me.md'))
       .toBe('/viewer/local?path=%2Ftmp%2Fread%20me.md');
+    expect(localFilePathToViewerUrl('.note/ddd.md', '/Users/donghojo/workspace/project'))
+      .toBe('/viewer/local?path=.note%2Fddd.md&base=%2FUsers%2Fdonghojo%2Fworkspace%2Fproject');
   });
 
   it('recovers file paths from internal viewer and content URLs', () => {
@@ -50,6 +62,8 @@ describe('local-file-links', () => {
       .toBe('/tmp/read me.md');
     expect(localFilePathFromHref('http://localhost:8022/api/local-file/Users/donghojo/readme.md'))
       .toBe('/Users/donghojo/readme.md');
+    expect(localFilePathFromHref('/viewer/local?path=.note%2Fddd.md'))
+      .toBe('.note/ddd.md');
   });
 
   it('rewrites local hrefs to the internal viewer', () => {

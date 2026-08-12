@@ -1,4 +1,7 @@
-const LOCAL_FILE_PATH_RE = /^\/(?:tmp|private\/tmp|var\/folders|Users|Volumes)(?:\/|$)/;
+const ROOTED_FILE_PATH_RE = /^(?:\/(?!\/)|~\/|\.\.?\/|\.[^/\\\s]+\/)[^\0]*$/;
+const NAMED_RELATIVE_FILE_PATH_RE = /^(?![a-z][a-z0-9+.-]*:\/\/)(?:[^/\\\s]+\/)+[^\0]*$/i;
+const BARE_FILE_PATH_RE = /^(?:\.[a-z0-9_-]+|[^/\\\s]+\.(?:avif|bmp|conf|css|csv|env|gif|htm|html|ico|ini|jpeg|jpg|js|json|jsonc|jsx|log|markdown|md|mdown|mjs|mkd|pdf|png|properties|sh|sql|svg|toml|ts|tsx|txt|webp|xml|yaml|yml))$/i;
+const APP_PATH_RE = /^\/(?:api|_next|viewer)(?:\/|$)/;
 const LOCALHOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const LOCAL_FILE_VIEWER_PATH = '/viewer/local';
 const LOCAL_FILE_CONTENT_PREFIX = '/api/local-file/';
@@ -20,8 +23,12 @@ const safeDecodeURIComponent = (value: string): string => {
   }
 };
 
-export const isLocalFilePath = (value: string): boolean =>
-  LOCAL_FILE_PATH_RE.test(stripSuffix(value.trim()));
+export const isLocalFilePath = (value: string): boolean => {
+  const pathValue = stripSuffix(value.trim());
+  return ROOTED_FILE_PATH_RE.test(pathValue)
+    || NAMED_RELATIVE_FILE_PATH_RE.test(pathValue)
+    || BARE_FILE_PATH_RE.test(pathValue);
+};
 
 export const localFilePathToUrl = (filePath: string): string => {
   const decoded = safeDecodeURIComponent(filePath.trim());
@@ -41,8 +48,13 @@ export const localFilePathToContentUrl = (filePath: string): string => {
   return `${LOCAL_FILE_CONTENT_PREFIX}${encodedPath}`;
 };
 
-export const localFilePathToViewerUrl = (filePath: string): string =>
-  `${LOCAL_FILE_VIEWER_PATH}?path=${encodeURIComponent(safeDecodeURIComponent(filePath.trim()))}`;
+export const localFilePathToViewerUrl = (filePath: string, basePath?: string): string => {
+  const pathQuery = `path=${encodeURIComponent(safeDecodeURIComponent(filePath.trim()))}`;
+  const baseQuery = basePath?.trim()
+    ? `&base=${encodeURIComponent(safeDecodeURIComponent(basePath.trim()))}`
+    : '';
+  return `${LOCAL_FILE_VIEWER_PATH}?${pathQuery}${baseQuery}`;
+};
 
 const pathFromContentUrl = (pathname: string): string | null => {
   if (!pathname.startsWith(LOCAL_FILE_CONTENT_PREFIX)) return null;
@@ -68,7 +80,7 @@ export const localFilePathFromHref = (href: string | undefined | null): string |
   const trimmed = href.trim();
   if (!trimmed) return null;
 
-  if (trimmed.startsWith('/') && isLocalFilePath(trimmed)) {
+  if (isLocalFilePath(trimmed) && !(trimmed.startsWith('/') && APP_PATH_RE.test(trimmed))) {
     return safeDecodeURIComponent(stripSuffix(trimmed));
   }
 
@@ -77,7 +89,7 @@ export const localFilePathFromHref = (href: string | undefined | null): string |
     const url = new URL(trimmed, 'http://localhost');
     if (url.protocol === 'file:') {
       const filePath = safeDecodeURIComponent(url.pathname);
-      return isLocalFilePath(filePath) ? filePath : null;
+      return isLocalFilePath(filePath) && !APP_PATH_RE.test(filePath) ? filePath : null;
     }
     if (!isRelativeAppUrl && !LOCALHOSTS.has(url.hostname)) return null;
 
@@ -86,7 +98,7 @@ export const localFilePathFromHref = (href: string | undefined | null): string |
 
     if ((url.protocol === 'http:' || url.protocol === 'https:') && LOCALHOSTS.has(url.hostname)) {
       const filePath = safeDecodeURIComponent(url.pathname);
-      return isLocalFilePath(filePath) ? filePath : null;
+      return isLocalFilePath(filePath) && !APP_PATH_RE.test(filePath) ? filePath : null;
     }
   } catch {
     return null;
@@ -107,5 +119,5 @@ export const localFileName = (filePath: string): string => {
 
 export const localFileUrlFromHref = (href: string | undefined | null): string | null => {
   const filePath = localFilePathFromHref(href);
-  return filePath ? localFilePathToUrl(filePath) : null;
+  return filePath?.startsWith('/') ? localFilePathToUrl(filePath) : null;
 };

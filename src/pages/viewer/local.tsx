@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Head from 'next/head';
 import type { GetServerSideProps } from 'next';
-import { useRouter } from 'next/router';
 import { useTranslations } from 'next-intl';
 import ReactMarkdown, { defaultUrlTransform, type UrlTransform } from 'react-markdown';
 import { AlertCircle } from 'lucide-react';
@@ -17,11 +16,13 @@ import {
 } from '@/lib/local-file-markdown';
 import LocalImageViewer from '@/components/features/workspace/local-image-viewer';
 
-const LocalViewerPage = () => {
-  const router = useRouter();
+interface ILocalViewerPageProps {
+  resolvedPath: string;
+}
+
+const LocalViewerPage = ({ resolvedPath }: ILocalViewerPageProps) => {
   const t = useTranslations('webBrowser');
-  const filePath = typeof router.query.path === 'string' ? router.query.path : '';
-  const validPath = isLocalFilePath(filePath) ? filePath : '';
+  const validPath = isLocalFilePath(resolvedPath) ? resolvedPath : '';
   const fileName = validPath ? localFileName(validPath) : '';
   const kind = getLocalFileKind(validPath);
   const contentUrl = validPath ? localFilePathToContentUrl(validPath) : '';
@@ -136,10 +137,13 @@ const LocalViewerPage = () => {
   );
 };
 
-export const getServerSideProps: GetServerSideProps = async () => {
+export const getServerSideProps: GetServerSideProps<ILocalViewerPageProps> = async ({ query }) => {
   const { loadMessagesServer } = await import('@/lib/load-messages');
+  const { resolveLocalFilePath } = await import('@/lib/local-file-server');
   const messages = await loadMessagesServer();
-  return { props: { messages } };
+  const filePath = typeof query.path === 'string' ? query.path : '';
+  const basePath = typeof query.base === 'string' ? query.base : undefined;
+  return { props: { messages, resolvedPath: resolveLocalFilePath(filePath, basePath) ?? '' } };
 };
 
 export default LocalViewerPage;
