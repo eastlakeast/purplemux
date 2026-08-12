@@ -45,11 +45,6 @@ import { getEntryText } from '@/lib/timeline-entry-text';
 import { firstMatchRange } from '@/lib/timeline-search-dom';
 import { useTimelineSearchHighlight } from '@/hooks/use-timeline-search-highlight';
 import { reloadForReconnectRecovery, shouldPromptMobileReloadRecovery } from '@/lib/ws-reload-recovery';
-import {
-  isTimelineAutoScrollPaused,
-  isTimelineScrollKey,
-  timelineAutoScrollPauseUntil,
-} from '@/lib/timeline-auto-scroll';
 
 interface ITimelineViewProps {
   entries: ITimelineEntry[];
@@ -580,9 +575,7 @@ const TimelineView = ({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
-  const autoScrollPausedUntilRef = useRef(0);
-  const autoScrollResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrollbarPointerActiveRef = useRef(false);
+  const hasOverflowBelowRef = useRef(false);
   const [skipAnimation, setSkipAnimation] = useState(true);
   const [prevSessionId, setPrevSessionId] = useState(sessionId);
   const [hasOverflowBelow, setHasOverflowBelow] = useState(false);
@@ -597,25 +590,10 @@ const TimelineView = ({
     }
   }, []);
 
-  const isAutoScrollPaused = useCallback(() =>
-    isTimelineAutoScrollPaused(autoScrollPausedUntilRef.current, Date.now()), []);
-
-  const resumeAutoScroll = useCallback((behavior: 'instant' | 'smooth' = 'instant') => {
-    autoScrollPausedUntilRef.current = 0;
-    if (autoScrollResumeTimerRef.current) clearTimeout(autoScrollResumeTimerRef.current);
-    autoScrollResumeTimerRef.current = null;
-    scrollToBottom(behavior);
-  }, [scrollToBottom]);
-
-  const pauseAutoScroll = useCallback(() => {
-    const pauseUntil = timelineAutoScrollPauseUntil(Date.now());
-    autoScrollPausedUntilRef.current = pauseUntil;
-    if (autoScrollResumeTimerRef.current) clearTimeout(autoScrollResumeTimerRef.current);
-    autoScrollResumeTimerRef.current = setTimeout(() => {
-      if (autoScrollPausedUntilRef.current !== pauseUntil) return;
-      resumeAutoScroll('instant');
-    }, Math.max(0, pauseUntil - Date.now()));
-  }, [resumeAutoScroll]);
+  const updateHasOverflowBelow = useCallback((value: boolean) => {
+    hasOverflowBelowRef.current = value;
+    setHasOverflowBelow(value);
+  }, []);
 
   const hasPendingUserMessage = entries.some((entry) => entry.type === 'user-message' && entry.pending === true);
 
@@ -629,18 +607,15 @@ const TimelineView = ({
   useEffect(() => {
     if (!scrollToBottomRef) return;
     scrollToBottomRef.current = () => {
-      if (!isAutoScrollPaused()) scrollToBottom('smooth');
+      if (!hasOverflowBelowRef.current) scrollToBottom('smooth');
     };
     return () => { scrollToBottomRef.current = undefined; };
-  }, [isAutoScrollPaused, scrollToBottomRef, scrollToBottom]);
+  }, [scrollToBottomRef, scrollToBottom]);
 
   useEffect(() => {
-    resumeAutoScroll('instant');
-  }, [sessionId, resumeAutoScroll]);
-
-  useEffect(() => () => {
-    if (autoScrollResumeTimerRef.current) clearTimeout(autoScrollResumeTimerRef.current);
-  }, []);
+    updateHasOverflowBelow(false);
+    scrollToBottom('instant');
+  }, [sessionId, scrollToBottom, updateHasOverflowBelow]);
 
   const groupedItems = useMemo(() => groupTimelineEntries(entries), [entries]);
   const hasDisplayItems = groupedItems.length > 0;
@@ -702,7 +677,6 @@ const TimelineView = ({
     const root = scrollRef.current;
     const card = root?.querySelector(`[data-timeline-item="${CSS.escape(currentMatchId)}"]`);
     if (!root || !(card instanceof HTMLElement)) return;
-    pauseAutoScroll();
     // 카드가 아니라 카드 안 첫 매치 키워드를 뷰 중앙으로 올려 눈이 바로 단어에 닿게 한다
     const needle = searchQuery.trim().toLowerCase();
     const range = needle ? firstMatchRange(card, needle) : null;
@@ -714,7 +688,7 @@ const TimelineView = ({
     } else {
       card.scrollIntoView({ block: 'center', behavior: 'instant' });
     }
-  }, [currentMatchId, pauseAutoScroll, searchOpen, searchQuery]);
+  }, [currentMatchId, searchOpen, searchQuery]);
 
   useTimelineSearchHighlight({
     scrollRef,
@@ -761,7 +735,7 @@ const TimelineView = ({
     const pinToBottom = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        if (!isAutoScrollPaused()) scrollToBottom('instant');
+        if (!hasOverflowBelowRef.current) scrollToBottom('instant');
       });
     };
     const ro = new ResizeObserver(pinToBottom);
@@ -772,12 +746,12 @@ const TimelineView = ({
       cancelAnimationFrame(frame);
       ro.disconnect();
     };
-  }, [active, isAutoScrollPaused, scrollToBottom]);
+  }, [active, scrollToBottom]);
 
   useEffect(() => {
     const handleVisible = () => {
       if (document.visibilityState === 'hidden') return;
-      if (!isAutoScrollPaused()) scrollToBottom('instant');
+      if (!hasOverflowBelowRef.current) scrollToBottom('instant');
     };
 
     document.addEventListener('visibilitychange', handleVisible);
@@ -788,42 +762,7 @@ const TimelineView = ({
       window.removeEventListener('focus', handleVisible);
       window.removeEventListener('pageshow', handleVisible);
     };
-  }, [isAutoScrollPaused, scrollToBottom]);
-
-  const handleTimelineWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
-    const scrollEl = event.currentTarget;
-    const maxScrollTop = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
-    const canMoveUp = event.deltaY < 0 && scrollEl.scrollTop > 0;
-    const canMoveDown = event.deltaY > 0 && scrollEl.scrollTop < maxScrollTop;
-    if (canMoveUp || canMoveDown) pauseAutoScroll();
-  }, [pauseAutoScroll]);
-
-  const handleTimelineKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || !isTimelineScrollKey(event.key)) return;
-    pauseAutoScroll();
-  }, [pauseAutoScroll]);
-
-  const handleTimelinePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    scrollbarPointerActiveRef.current = event.target === event.currentTarget;
-  }, []);
-
-  const handleTimelineScroll = useCallback(() => {
-    if (scrollbarPointerActiveRef.current) pauseAutoScroll();
-  }, [pauseAutoScroll]);
-
-  const handleTimelineTouchMove = useCallback(() => {
-    pauseAutoScroll();
-  }, [pauseAutoScroll]);
-
-  useEffect(() => {
-    const stopScrollbarDrag = () => { scrollbarPointerActiveRef.current = false; };
-    window.addEventListener('pointerup', stopScrollbarDrag);
-    window.addEventListener('pointercancel', stopScrollbarDrag);
-    return () => {
-      window.removeEventListener('pointerup', stopScrollbarDrag);
-      window.removeEventListener('pointercancel', stopScrollbarDrag);
-    };
-  }, []);
+  }, [scrollToBottom]);
 
   const canObserveOverflow = !isLoading && !error && hasDisplayItems && !skipAnimation;
   useEffect(() => {
@@ -834,19 +773,20 @@ const TimelineView = ({
 
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setHasOverflowBelow(false);
-          return;
-        }
         const root = entry.rootBounds;
         const target = entry.boundingClientRect;
-        setHasOverflowBelow(!!root && target.top >= root.bottom);
+        updateHasOverflowBelow(!entry.isIntersecting && !!root && target.top >= root.bottom);
       },
       { root: scrollEl, threshold: 0, rootMargin: OVERFLOW_SENTINEL_ROOT_MARGIN },
     );
     io.observe(sentinel);
     return () => io.disconnect();
-  }, [canObserveOverflow, scrollRef]);
+  }, [canObserveOverflow, updateHasOverflowBelow]);
+
+  const handleScrollToBottom = useCallback(() => {
+    updateHasOverflowBelow(false);
+    scrollToBottom('smooth');
+  }, [scrollToBottom, updateHasOverflowBelow]);
 
   const isLoadingMoreRef = useRef(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -953,11 +893,6 @@ const TimelineView = ({
         tabIndex={0}
         role="log"
         aria-label={t('timelineAria')}
-        onWheel={handleTimelineWheel}
-        onKeyDown={handleTimelineKeyDown}
-        onPointerDown={handleTimelinePointerDown}
-        onScroll={handleTimelineScroll}
-        onTouchMove={handleTimelineTouchMove}
       >
         <div ref={contentRef} className="mx-auto max-w-content">
           {hasMore && <div ref={sentinelRef} className="h-px" />}
@@ -1041,7 +976,7 @@ const TimelineView = ({
       {isDisconnected && <DisconnectedBanner onRetry={onRetry} />}
       <ScrollToBottomButton
         visible={hasOverflowBelow}
-        onClick={() => resumeAutoScroll('smooth')}
+        onClick={handleScrollToBottom}
       />
     </div>
   );
