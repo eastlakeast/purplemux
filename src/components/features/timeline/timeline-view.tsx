@@ -4,7 +4,6 @@ import { useTranslations } from 'next-intl';
 import { Terminal, RefreshCw, OctagonX, LogOut, ChevronsUp, MessageSquareMore } from 'lucide-react';
 import { diffLines } from 'diff';
 import Spinner from '@/components/ui/spinner';
-import { useStickToBottom } from 'use-stick-to-bottom';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type {
@@ -46,7 +45,11 @@ import { getEntryText } from '@/lib/timeline-entry-text';
 import { firstMatchRange } from '@/lib/timeline-search-dom';
 import { useTimelineSearchHighlight } from '@/hooks/use-timeline-search-highlight';
 import { reloadForReconnectRecovery, shouldPromptMobileReloadRecovery } from '@/lib/ws-reload-recovery';
-import { calculateTimelineSpacerHeight } from '@/lib/timeline-scroll-anchor';
+import {
+  isTimelineAutoScrollPaused,
+  isTimelineScrollKey,
+  timelineAutoScrollPauseUntil,
+} from '@/lib/timeline-auto-scroll';
 
 interface ITimelineViewProps {
   entries: ITimelineEntry[];
@@ -70,15 +73,7 @@ interface ITimelineViewProps {
 
 const RESUME_TOKEN_THRESHOLD = 100_000;
 const RESUME_IDLE_MINUTES = 70;
-const ANCHOR_OFFSET = 12;
-const ANCHOR_SETTLE_DELAY_MS = 300;
 const OVERFLOW_SENTINEL_ROOT_MARGIN = '0px 0px 4px 0px';
-
-const getOffsetInScroller = (el: HTMLElement, scrollEl: HTMLElement): number => {
-  const elRect = el.getBoundingClientRect();
-  const scrollRect = scrollEl.getBoundingClientRect();
-  return elRect.top - scrollRect.top + scrollEl.scrollTop;
-};
 
 const ElapsedTime = ({ since }: { since: number }) => {
   const [elapsed, setElapsed] = useState(0);
@@ -582,29 +577,45 @@ const TimelineView = ({
   // plan mode 대기 중엔 tool_use가 JSONL에 없으므로, hook으로 받은 라이브 질문으로 폼을 렌더한다
   const pendingQuestions = useTabStore((s) => (tabId ? s.tabs[tabId]?.pendingQuestions : undefined));
   const isCompacting = compactingSince != null && Date.now() - compactingSince < 60_000;
-  const anchorElRef = useRef<HTMLDivElement | null>(null);
-  const spacerRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
-  const armedRef = useRef(false);
-  const anchorPinnedRef = useRef(false);
-  const isAtBottomRef = useRef(true);
-  const wasBusyRef = useRef(false);
-  const pendingShrinkRef = useRef(false);
-  const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom({
-    resize: { damping: 0.8, stiffness: 0.05 },
-    initial: 'instant',
-    targetScrollTop: (defaultTarget, { scrollElement }) => {
-      const el = anchorElRef.current;
-      if (!el || !anchorPinnedRef.current) return defaultTarget;
-      return getOffsetInScroller(el, scrollElement) - ANCHOR_OFFSET;
-    },
-  });
-  isAtBottomRef.current = isAtBottom;
-  const [anchorUserId, setAnchorUserId] = useState<string | null>(null);
-  const [spacerHeight, setSpacerHeight] = useState(0);
+  const autoScrollPausedUntilRef = useRef(0);
+  const autoScrollResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollbarPointerActiveRef = useRef(false);
   const [skipAnimation, setSkipAnimation] = useState(true);
   const [prevSessionId, setPrevSessionId] = useState(sessionId);
   const [hasOverflowBelow, setHasOverflowBelow] = useState(false);
+
+  const scrollToBottom = useCallback((behavior: 'instant' | 'smooth' = 'instant') => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return;
+    if (behavior === 'smooth') {
+      scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
+    } else {
+      scrollEl.scrollTop = scrollEl.scrollHeight;
+    }
+  }, []);
+
+  const isAutoScrollPaused = useCallback(() =>
+    isTimelineAutoScrollPaused(autoScrollPausedUntilRef.current, Date.now()), []);
+
+  const resumeAutoScroll = useCallback((behavior: 'instant' | 'smooth' = 'instant') => {
+    autoScrollPausedUntilRef.current = 0;
+    if (autoScrollResumeTimerRef.current) clearTimeout(autoScrollResumeTimerRef.current);
+    autoScrollResumeTimerRef.current = null;
+    scrollToBottom(behavior);
+  }, [scrollToBottom]);
+
+  const pauseAutoScroll = useCallback(() => {
+    const pauseUntil = timelineAutoScrollPauseUntil(Date.now());
+    autoScrollPausedUntilRef.current = pauseUntil;
+    if (autoScrollResumeTimerRef.current) clearTimeout(autoScrollResumeTimerRef.current);
+    autoScrollResumeTimerRef.current = setTimeout(() => {
+      if (autoScrollPausedUntilRef.current !== pauseUntil) return;
+      resumeAutoScroll('instant');
+    }, Math.max(0, pauseUntil - Date.now()));
+  }, [resumeAutoScroll]);
 
   const hasPendingUserMessage = entries.some((entry) => entry.type === 'user-message' && entry.pending === true);
 
@@ -612,23 +623,24 @@ const TimelineView = ({
     setPrevSessionId(sessionId);
     if (!hasPendingUserMessage) {
       setSkipAnimation(true);
-      setAnchorUserId(null);
     }
-    armedRef.current = false;
-    anchorPinnedRef.current = false;
-    wasBusyRef.current = false;
-    pendingShrinkRef.current = false;
   }
 
   useEffect(() => {
     if (!scrollToBottomRef) return;
     scrollToBottomRef.current = () => {
-      armedRef.current = true;
-      scrollToBottom('smooth');
-      setTimeout(() => scrollToBottom('smooth'), ANCHOR_SETTLE_DELAY_MS);
+      if (!isAutoScrollPaused()) scrollToBottom('smooth');
     };
     return () => { scrollToBottomRef.current = undefined; };
-  }, [scrollToBottomRef, scrollToBottom]);
+  }, [isAutoScrollPaused, scrollToBottomRef, scrollToBottom]);
+
+  useEffect(() => {
+    resumeAutoScroll('instant');
+  }, [sessionId, resumeAutoScroll]);
+
+  useEffect(() => () => {
+    if (autoScrollResumeTimerRef.current) clearTimeout(autoScrollResumeTimerRef.current);
+  }, []);
 
   const groupedItems = useMemo(() => groupTimelineEntries(entries), [entries]);
   const hasDisplayItems = groupedItems.length > 0;
@@ -690,6 +702,7 @@ const TimelineView = ({
     const root = scrollRef.current;
     const card = root?.querySelector(`[data-timeline-item="${CSS.escape(currentMatchId)}"]`);
     if (!root || !(card instanceof HTMLElement)) return;
+    pauseAutoScroll();
     // 카드가 아니라 카드 안 첫 매치 키워드를 뷰 중앙으로 올려 눈이 바로 단어에 닿게 한다
     const needle = searchQuery.trim().toLowerCase();
     const range = needle ? firstMatchRange(card, needle) : null;
@@ -701,7 +714,7 @@ const TimelineView = ({
     } else {
       card.scrollIntoView({ block: 'center', behavior: 'instant' });
     }
-  }, [currentMatchId, searchOpen, searchQuery, scrollRef]);
+  }, [currentMatchId, pauseAutoScroll, searchOpen, searchQuery]);
 
   useTimelineSearchHighlight({
     scrollRef,
@@ -710,24 +723,6 @@ const TimelineView = ({
     currentMatchId,
     revision: groupedItems,
   });
-
-  const lastUserMessageId = useMemo(
-    () => groupedItems.findLast((item) => item.type === 'entry' && item.entry.type === 'user-message')?.id ?? null,
-    [groupedItems],
-  );
-
-  useEffect(() => {
-    if (armedRef.current && lastUserMessageId && lastUserMessageId !== anchorUserId) {
-      anchorPinnedRef.current = true;
-      setAnchorUserId(lastUserMessageId);
-      armedRef.current = false;
-      return;
-    }
-    if (anchorUserId && lastUserMessageId && lastUserMessageId !== anchorUserId) {
-      const anchorExists = entries.some((e) => e.id === anchorUserId);
-      if (!anchorExists) setAnchorUserId(lastUserMessageId);
-    }
-  }, [lastUserMessageId, anchorUserId, entries]);
 
   const [shouldProbeResumeDialog, setShouldProbeResumeDialog] = useState(false);
   const currentContextTokens = sessionStats?.currentContextTokens ?? 0;
@@ -758,123 +753,31 @@ const TimelineView = ({
     }
   }, [skipAnimation, entries.length, scrollToBottom]);
 
-  const measureSpacer = useCallback(() => {
-    const scrollEl = scrollRef.current;
-    const userEl = anchorElRef.current;
-    const spacerEl = spacerRef.current;
-    if (!scrollEl || !userEl || !spacerEl) return;
-    const userBottom = userEl.offsetTop + userEl.offsetHeight;
-    const postUserHeight = Math.max(0, spacerEl.offsetTop - userBottom);
-    const next = calculateTimelineSpacerHeight(
-      scrollEl.clientHeight,
-      userEl.offsetHeight,
-      postUserHeight,
-      ANCHOR_OFFSET,
-    );
-    const releaseAnchor = next === 0 && anchorPinnedRef.current && isAtBottomRef.current;
-    if (releaseAnchor) anchorPinnedRef.current = false;
-    setSpacerHeight((prev) => (prev === next ? prev : next));
-    if (releaseAnchor) {
-      requestAnimationFrame(() => {
-        scrollToBottom({ preserveScrollPosition: true });
-      });
-    }
-  }, [scrollRef, scrollToBottom]);
-
-  const shrinkSpacerSafely = useCallback(() => {
-    const scrollEl = scrollRef.current;
-    const userEl = anchorElRef.current;
-    const spacerEl = spacerRef.current;
-    if (!scrollEl || !userEl || !spacerEl) return;
-    const current = spacerEl.offsetHeight;
-    if (current === 0) return;
-    const scrollTop = scrollEl.scrollTop;
-    const userBottom = userEl.offsetTop + userEl.offsetHeight;
-    const postUserHeight = Math.max(0, spacerEl.offsetTop - userBottom);
-    const pinRemainder = calculateTimelineSpacerHeight(
-      scrollEl.clientHeight,
-      userEl.offsetHeight,
-      postUserHeight,
-      ANCHOR_OFFSET,
-    );
-    const pin = Math.max(0, getOffsetInScroller(userEl, scrollEl) - ANCHOR_OFFSET);
-    const atPin = scrollTop >= pin - 2;
-    const target = atPin ? pinRemainder : 0;
-    if (current <= target) return;
-    const maxScroll = scrollEl.scrollHeight - scrollEl.clientHeight;
-    const headroom = Math.max(0, maxScroll - scrollTop);
-    const shrinkBy = Math.min(current - target, headroom);
-    if (shrinkBy <= 0) return;
-    setSpacerHeight(current - shrinkBy);
-  }, [scrollRef]);
-
-  const scheduleShrinkSpacerSafely = useCallback(() => {
-    if (!anchorUserId || cliState === 'busy') return;
-    pendingShrinkRef.current = true;
-    requestAnimationFrame(() => {
-      shrinkSpacerSafely();
-      setTimeout(shrinkSpacerSafely, ANCHOR_SETTLE_DELAY_MS);
-    });
-  }, [anchorUserId, cliState, shrinkSpacerSafely]);
-
-  useLayoutEffect(() => {
-    wasBusyRef.current = false;
-    pendingShrinkRef.current = false;
-    if (!anchorUserId) {
-      anchorPinnedRef.current = false;
-      setSpacerHeight(0);
-      return;
-    }
-    measureSpacer();
-  }, [anchorUserId, measureSpacer]);
-
   useEffect(() => {
     const scrollEl = scrollRef.current;
-    if (!scrollEl) return;
-    const ro = new ResizeObserver(() => measureSpacer());
-    ro.observe(scrollEl);
-    return () => ro.disconnect();
-  }, [scrollRef, measureSpacer]);
-
-  useEffect(() => {
     const contentEl = contentRef.current;
-    if (!contentEl) return;
-    const ro = new ResizeObserver(() => {
-      if (anchorPinnedRef.current && isAtBottomRef.current) {
-        measureSpacer();
-      } else if (pendingShrinkRef.current) {
-        shrinkSpacerSafely();
-      }
-    });
+    if (!scrollEl || !contentEl || !active) return;
+    let frame = 0;
+    const pinToBottom = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (!isAutoScrollPaused()) scrollToBottom('instant');
+      });
+    };
+    const ro = new ResizeObserver(pinToBottom);
+    ro.observe(scrollEl);
     ro.observe(contentEl);
-    return () => ro.disconnect();
-  }, [contentRef, measureSpacer, shrinkSpacerSafely]);
-
-  useEffect(() => {
-    if (!anchorUserId) return;
-    if (cliState === 'busy') {
-      wasBusyRef.current = true;
-      pendingShrinkRef.current = false;
-      return;
-    }
-    if (wasBusyRef.current) {
-      wasBusyRef.current = false;
-      pendingShrinkRef.current = true;
-    } else if (!pendingShrinkRef.current) {
-      const lastUserIdx = entries.findLastIndex((e) => e.id === anchorUserId);
-      if (lastUserIdx >= 0 && entries.length > lastUserIdx + 1) {
-        pendingShrinkRef.current = true;
-      }
-    }
-    if (pendingShrinkRef.current) {
-      shrinkSpacerSafely();
-    }
-  }, [cliState, anchorUserId, entries, shrinkSpacerSafely]);
+    pinToBottom();
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
+  }, [active, isAutoScrollPaused, scrollToBottom]);
 
   useEffect(() => {
     const handleVisible = () => {
       if (document.visibilityState === 'hidden') return;
-      scheduleShrinkSpacerSafely();
+      if (!isAutoScrollPaused()) scrollToBottom('instant');
     };
 
     document.addEventListener('visibilitychange', handleVisible);
@@ -885,7 +788,42 @@ const TimelineView = ({
       window.removeEventListener('focus', handleVisible);
       window.removeEventListener('pageshow', handleVisible);
     };
-  }, [scheduleShrinkSpacerSafely]);
+  }, [isAutoScrollPaused, scrollToBottom]);
+
+  const handleTimelineWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const scrollEl = event.currentTarget;
+    const maxScrollTop = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+    const canMoveUp = event.deltaY < 0 && scrollEl.scrollTop > 0;
+    const canMoveDown = event.deltaY > 0 && scrollEl.scrollTop < maxScrollTop;
+    if (canMoveUp || canMoveDown) pauseAutoScroll();
+  }, [pauseAutoScroll]);
+
+  const handleTimelineKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || !isTimelineScrollKey(event.key)) return;
+    pauseAutoScroll();
+  }, [pauseAutoScroll]);
+
+  const handleTimelinePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    scrollbarPointerActiveRef.current = event.target === event.currentTarget;
+  }, []);
+
+  const handleTimelineScroll = useCallback(() => {
+    if (scrollbarPointerActiveRef.current) pauseAutoScroll();
+  }, [pauseAutoScroll]);
+
+  const handleTimelineTouchMove = useCallback(() => {
+    pauseAutoScroll();
+  }, [pauseAutoScroll]);
+
+  useEffect(() => {
+    const stopScrollbarDrag = () => { scrollbarPointerActiveRef.current = false; };
+    window.addEventListener('pointerup', stopScrollbarDrag);
+    window.addEventListener('pointercancel', stopScrollbarDrag);
+    return () => {
+      window.removeEventListener('pointerup', stopScrollbarDrag);
+      window.removeEventListener('pointercancel', stopScrollbarDrag);
+    };
+  }, []);
 
   const canObserveOverflow = !isLoading && !error && hasDisplayItems && !skipAnimation;
   useEffect(() => {
@@ -1015,6 +953,11 @@ const TimelineView = ({
         tabIndex={0}
         role="log"
         aria-label={t('timelineAria')}
+        onWheel={handleTimelineWheel}
+        onKeyDown={handleTimelineKeyDown}
+        onPointerDown={handleTimelinePointerDown}
+        onScroll={handleTimelineScroll}
+        onTouchMove={handleTimelineTouchMove}
       >
         <div ref={contentRef} className="mx-auto max-w-content">
           {hasMore && <div ref={sentinelRef} className="h-px" />}
@@ -1042,7 +985,6 @@ const TimelineView = ({
           {groupedItems.map((item) => (
             <div
               key={item.id}
-              ref={item.id === anchorUserId ? anchorElRef : undefined}
               data-timeline-item={item.id}
               className={cn(
                 'px-4 py-1.5',
@@ -1093,19 +1035,13 @@ const TimelineView = ({
             </div>
           )}
           <div ref={bottomSentinelRef} aria-hidden style={{ height: 0, overflowAnchor: 'none' }} />
-          {/* overflow-anchor: none prevents the browser from anchoring scroll to this spacer when its height changes */}
-          <div ref={spacerRef} aria-hidden style={{ height: spacerHeight, overflowAnchor: 'none' }} />
         </div>
       </div>
       {isReconnecting && <ReconnectBanner />}
       {isDisconnected && <DisconnectedBanner onRetry={onRetry} />}
       <ScrollToBottomButton
         visible={hasOverflowBelow}
-        onClick={() => {
-          anchorPinnedRef.current = false;
-          setSpacerHeight(0);
-          requestAnimationFrame(() => scrollToBottom('smooth'));
-        }}
+        onClick={() => resumeAutoScroll('smooth')}
       />
     </div>
   );
