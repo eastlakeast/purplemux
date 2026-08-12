@@ -56,6 +56,16 @@ describe('remarkLocalFileLinks', () => {
     expect(renderMarkdown('`open /tmp/aios-main.png`')).not.toContain('<a ');
   });
 
+  it('does not link slash-delimited prose, counters, or executable files', () => {
+    const html = renderMarkdown([
+      'Java/JAR를 배열로 실행',
+      'shell 231/231, E2E 314/314',
+      '/Users/donghojo/workspace/aios/dist/AIOS-0.2.1-x64-setup.exe',
+    ].join('\n'));
+
+    expect(html).not.toContain('<a ');
+  });
+
   it('links local file paths inside code blocks', () => {
     const html = renderMarkdown([
       '```',
