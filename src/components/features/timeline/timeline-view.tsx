@@ -575,7 +575,6 @@ const TimelineView = ({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
-  const hasOverflowBelowRef = useRef(false);
   const [skipAnimation, setSkipAnimation] = useState(true);
   const [prevSessionId, setPrevSessionId] = useState(sessionId);
   const [hasOverflowBelow, setHasOverflowBelow] = useState(false);
@@ -591,7 +590,6 @@ const TimelineView = ({
   }, []);
 
   const updateHasOverflowBelow = useCallback((value: boolean) => {
-    hasOverflowBelowRef.current = value;
     setHasOverflowBelow(value);
   }, []);
 
@@ -616,10 +614,10 @@ const TimelineView = ({
   useEffect(() => {
     if (!scrollToBottomRef) return;
     scrollToBottomRef.current = () => {
-      if (!hasOverflowBelowRef.current) scrollToBottom('smooth');
+      if (!hasOverflowBelow) scrollToBottom('smooth');
     };
     return () => { scrollToBottomRef.current = undefined; };
-  }, [scrollToBottomRef, scrollToBottom]);
+  }, [hasOverflowBelow, scrollToBottomRef, scrollToBottom]);
 
   useEffect(() => {
     updateHasOverflowBelow(false);
@@ -742,10 +740,9 @@ const TimelineView = ({
     if (!scrollEl || !contentEl || !active) return;
     let frame = 0;
     const pinToBottom = () => {
-      const shouldPin = !hasOverflowBelowRef.current;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        if (shouldPin) scrollToBottom('instant');
+        if (!hasOverflowBelow) scrollToBottom('instant');
         syncOverflowState();
       });
     };
@@ -757,12 +754,12 @@ const TimelineView = ({
       cancelAnimationFrame(frame);
       ro.disconnect();
     };
-  }, [active, scrollToBottom, syncOverflowState]);
+  }, [active, hasOverflowBelow, scrollToBottom, syncOverflowState]);
 
   useEffect(() => {
     const handleVisible = () => {
       if (document.visibilityState === 'hidden') return;
-      if (!hasOverflowBelowRef.current) scrollToBottom('instant');
+      if (!hasOverflowBelow) scrollToBottom('instant');
     };
 
     document.addEventListener('visibilitychange', handleVisible);
@@ -773,7 +770,7 @@ const TimelineView = ({
       window.removeEventListener('focus', handleVisible);
       window.removeEventListener('pageshow', handleVisible);
     };
-  }, [scrollToBottom]);
+  }, [hasOverflowBelow, scrollToBottom]);
 
   const handleScrollToBottom = useCallback(() => {
     updateHasOverflowBelow(false);
