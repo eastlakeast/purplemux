@@ -18,6 +18,7 @@ export interface ITimelinePrependScrollSnapshot {
   itemId: string | null;
   itemOffset: number;
   scrollTop: number;
+  scrollHeight: number;
   previousOverflowAnchor: string;
 }
 
@@ -41,10 +42,24 @@ export const prependAnchoredScrollTop = (
   scrollTop: number,
   currentItemOffset: number | null,
   capturedItemOffset: number,
-  capturedScrollTop: number,
+  scrollHeightDelta: number,
 ): number => currentItemOffset === null
-  ? capturedScrollTop
+  ? Math.max(0, scrollTop + scrollHeightDelta)
   : anchoredScrollTop(scrollTop, currentItemOffset, capturedItemOffset);
+
+export const createTimelineScrollAnchorId = (
+  ...parts: Array<string | number | boolean | null | undefined>
+): string => {
+  let hash = 2_166_136_261;
+  for (const part of parts) {
+    const value = `${part ?? ''}\u001f`;
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16_777_619);
+    }
+  }
+  return `${parts[0] ?? 'entry'}-${(hash >>> 0).toString(36)}`;
+};
 
 export const calculateTimelineSpacerHeight = (
   viewportHeight: number,
@@ -124,6 +139,7 @@ export const captureTimelinePrependScroll = (
     itemId: visible?.id || null,
     itemOffset: visible ? visible.top - rootRect.top : 0,
     scrollTop: root.scrollTop,
+    scrollHeight: root.scrollHeight,
     previousOverflowAnchor,
   };
 };
@@ -138,12 +154,14 @@ export const restoreTimelinePrependScroll = (
   const currentOffset = item
     ? item.getBoundingClientRect().top - root.getBoundingClientRect().top
     : null;
+  const scrollHeightDelta = root.scrollHeight - snapshot.scrollHeight;
   root.scrollTop = prependAnchoredScrollTop(
     root.scrollTop,
     currentOffset,
     snapshot.itemOffset,
-    snapshot.scrollTop,
+    scrollHeightDelta,
   );
+  snapshot.scrollHeight = root.scrollHeight;
   return item !== null;
 };
 
