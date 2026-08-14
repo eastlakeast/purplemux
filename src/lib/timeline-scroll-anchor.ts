@@ -13,6 +13,14 @@ interface ITimelineScrollSnapshot {
   width: number;
 }
 
+export interface ITimelinePrependScrollSnapshot {
+  root: HTMLElement;
+  itemId: string | null;
+  itemOffset: number;
+  scrollTop: number;
+  previousOverflowAnchor: string;
+}
+
 const RESTORE_DURATION_MS = 450;
 const WAIT_FOR_REFLOW_MS = 800;
 
@@ -29,6 +37,15 @@ export const anchoredScrollTop = (
   capturedItemOffset: number,
 ): number => Math.max(0, scrollTop + currentItemOffset - capturedItemOffset);
 
+export const prependAnchoredScrollTop = (
+  scrollTop: number,
+  currentItemOffset: number | null,
+  capturedItemOffset: number,
+  capturedScrollTop: number,
+): number => currentItemOffset === null
+  ? capturedScrollTop
+  : anchoredScrollTop(scrollTop, currentItemOffset, capturedItemOffset);
+
 export const calculateTimelineSpacerHeight = (
   viewportHeight: number,
   userMessageHeight: number,
@@ -39,11 +56,20 @@ export const calculateTimelineSpacerHeight = (
   viewportHeight - userMessageHeight - anchorOffset - contentAfterUserHeight,
 );
 
-const getTimelineItems = (root: HTMLElement): HTMLElement[] =>
-  Array.from(root.querySelectorAll<HTMLElement>('[data-timeline-item]'));
+const getTimelineItems = (root: HTMLElement): HTMLElement[] => {
+  const stableAnchors = Array.from(
+    root.querySelectorAll<HTMLElement>('[data-timeline-scroll-anchor]'),
+  );
+  return stableAnchors.length > 0
+    ? stableAnchors
+    : Array.from(root.querySelectorAll<HTMLElement>('[data-timeline-item]'));
+};
+
+const getTimelineItemId = (item: HTMLElement): string =>
+  item.dataset.timelineScrollAnchor ?? item.dataset.timelineItem ?? '';
 
 const findItemById = (root: HTMLElement, itemId: string): HTMLElement | null =>
-  getTimelineItems(root).find((item) => item.dataset.timelineItem === itemId) ?? null;
+  getTimelineItems(root).find((item) => getTimelineItemId(item) === itemId) ?? null;
 
 const resolveRoot = (snapshot: ITimelineScrollSnapshot): HTMLElement | null => {
   if (snapshot.root.isConnected) return snapshot.root;
@@ -62,7 +88,7 @@ export const captureTimelineScroll = (target: HTMLElement): ITimelineScrollSnaps
   const visible = findVisibleTimelineItem(
     items.map((item) => {
       const rect = item.getBoundingClientRect();
-      return { id: item.dataset.timelineItem ?? '', top: rect.top, bottom: rect.bottom };
+      return { id: getTimelineItemId(item), top: rect.top, bottom: rect.bottom };
     }),
     rootRect.top,
     rootRect.bottom,
@@ -76,6 +102,57 @@ export const captureTimelineScroll = (target: HTMLElement): ITimelineScrollSnaps
     scrollTop: root.scrollTop,
     width: root.clientWidth,
   };
+};
+
+export const captureTimelinePrependScroll = (
+  root: HTMLElement,
+): ITimelinePrependScrollSnapshot => {
+  const rootRect = root.getBoundingClientRect();
+  const visible = findVisibleTimelineItem(
+    getTimelineItems(root).map((item) => {
+      const rect = item.getBoundingClientRect();
+      return { id: getTimelineItemId(item), top: rect.top, bottom: rect.bottom };
+    }),
+    rootRect.top,
+    rootRect.bottom,
+  );
+  const previousOverflowAnchor = root.style.overflowAnchor;
+  root.style.overflowAnchor = 'none';
+
+  return {
+    root,
+    itemId: visible?.id || null,
+    itemOffset: visible ? visible.top - rootRect.top : 0,
+    scrollTop: root.scrollTop,
+    previousOverflowAnchor,
+  };
+};
+
+export const restoreTimelinePrependScroll = (
+  snapshot: ITimelinePrependScrollSnapshot,
+): boolean => {
+  const { root } = snapshot;
+  if (!root.isConnected) return false;
+
+  const item = snapshot.itemId ? findItemById(root, snapshot.itemId) : null;
+  const currentOffset = item
+    ? item.getBoundingClientRect().top - root.getBoundingClientRect().top
+    : null;
+  root.scrollTop = prependAnchoredScrollTop(
+    root.scrollTop,
+    currentOffset,
+    snapshot.itemOffset,
+    snapshot.scrollTop,
+  );
+  return item !== null;
+};
+
+export const releaseTimelinePrependScroll = (
+  snapshot: ITimelinePrependScrollSnapshot,
+): void => {
+  if (snapshot.root.isConnected) {
+    snapshot.root.style.overflowAnchor = snapshot.previousOverflowAnchor;
+  }
 };
 
 export const restoreTimelineScrollAfterLayout = (snapshot: ITimelineScrollSnapshot): (() => void) => {

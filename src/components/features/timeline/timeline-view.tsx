@@ -45,6 +45,12 @@ import { getEntryText } from '@/lib/timeline-entry-text';
 import { firstMatchRange } from '@/lib/timeline-search-dom';
 import { useTimelineSearchHighlight } from '@/hooks/use-timeline-search-highlight';
 import { reloadForReconnectRecovery, shouldPromptMobileReloadRecovery } from '@/lib/ws-reload-recovery';
+import {
+  captureTimelinePrependScroll,
+  releaseTimelinePrependScroll,
+  restoreTimelinePrependScroll,
+  type ITimelinePrependScrollSnapshot,
+} from '@/lib/timeline-scroll-anchor';
 
 interface ITimelineViewProps {
   entries: ITimelineEntry[];
@@ -575,9 +581,20 @@ const TimelineView = ({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
+  const isLoadingMoreRef = useRef(false);
+  const prependScrollAnchorRef = useRef<ITimelinePrependScrollSnapshot | null>(null);
+  const prependReleaseFrameRef = useRef(0);
   const [skipAnimation, setSkipAnimation] = useState(true);
   const [prevSessionId, setPrevSessionId] = useState(sessionId);
   const [hasOverflowBelow, setHasOverflowBelow] = useState(false);
+
+  const clearPrependScrollAnchor = useCallback(() => {
+    cancelAnimationFrame(prependReleaseFrameRef.current);
+    if (prependScrollAnchorRef.current) {
+      releaseTimelinePrependScroll(prependScrollAnchorRef.current);
+      prependScrollAnchorRef.current = null;
+    }
+  }, []);
 
   const scrollToBottom = useCallback((behavior: 'instant' | 'smooth' = 'instant') => {
     const scrollEl = scrollRef.current;
@@ -742,7 +759,9 @@ const TimelineView = ({
     const pinToBottom = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        if (!hasOverflowBelow) scrollToBottom('instant');
+        if (!prependScrollAnchorRef.current && !hasOverflowBelow) {
+          scrollToBottom('instant');
+        }
         syncOverflowState();
       });
     };
@@ -773,47 +792,48 @@ const TimelineView = ({
   }, [hasOverflowBelow, scrollToBottom]);
 
   const handleScrollToBottom = useCallback(() => {
+    clearPrependScrollAnchor();
     updateHasOverflowBelow(false);
     scrollToBottom('smooth');
-  }, [scrollToBottom, updateHasOverflowBelow]);
+  }, [clearPrependScrollAnchor, scrollToBottom, updateHasOverflowBelow]);
 
-  const isLoadingMoreRef = useRef(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const needsManualAnchor = typeof CSS !== 'undefined' && !CSS.supports?.('overflow-anchor', 'auto');
-  const scrollAnchorRef = useRef<{ scrollHeight: number } | null>(null);
 
   const triggerLoadMore = useCallback(() => {
     if (!hasMore || isLoadingMoreRef.current) return;
     isLoadingMoreRef.current = true;
-    setIsLoadingMore(true);
-
-    if (needsManualAnchor) {
-      const scrollEl = scrollRef.current;
-      if (scrollEl) {
-        scrollAnchorRef.current = { scrollHeight: scrollEl.scrollHeight };
-      }
+    const scrollEl = scrollRef.current;
+    if (scrollEl) {
+      clearPrependScrollAnchor();
+      prependScrollAnchorRef.current = captureTimelinePrependScroll(scrollEl);
     }
+    setIsLoadingMore(true);
 
     onLoadMore().finally(() => {
       isLoadingMoreRef.current = false;
       setIsLoadingMore(false);
     });
-  }, [hasMore, onLoadMore, scrollRef, needsManualAnchor]);
+  }, [clearPrependScrollAnchor, hasMore, onLoadMore, scrollRef]);
 
   useLayoutEffect(() => {
-    if (!needsManualAnchor) return;
+    const anchor = prependScrollAnchorRef.current;
+    if (!anchor) return;
 
-    const anchor = scrollAnchorRef.current;
-    const scrollEl = scrollRef.current;
-    if (!anchor || !scrollEl || isLoadingMore) return;
+    restoreTimelinePrependScroll(anchor);
+    syncOverflowState();
+    if (isLoadingMore) return;
 
-    const heightDiff = scrollEl.scrollHeight - anchor.scrollHeight;
-    if (heightDiff > 0) {
-      scrollEl.scrollTop += heightDiff;
-    }
-    scrollAnchorRef.current = null;
-  }, [isLoadingMore, scrollRef, needsManualAnchor]);
+    cancelAnimationFrame(prependReleaseFrameRef.current);
+    prependReleaseFrameRef.current = requestAnimationFrame(() => {
+      if (prependScrollAnchorRef.current !== anchor) return;
+      restoreTimelinePrependScroll(anchor);
+      syncOverflowState();
+      clearPrependScrollAnchor();
+    });
+  }, [clearPrependScrollAnchor, groupedItems, isLoadingMore, syncOverflowState]);
+
+  useEffect(() => clearPrependScrollAnchor, [clearPrependScrollAnchor, sessionId]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -911,6 +931,9 @@ const TimelineView = ({
             <div
               key={item.id}
               data-timeline-item={item.id}
+              data-timeline-scroll-anchor={item.type === 'tool-group'
+                ? item.toolCalls[item.toolCalls.length - 1]?.id ?? item.id
+                : item.id}
               className={cn(
                 'px-4 py-1.5',
                 searchOpen && item.id === currentMatchId && 'rounded-md bg-claude-active/5 ring-2 ring-claude-active/40',
