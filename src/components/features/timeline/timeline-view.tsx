@@ -47,6 +47,7 @@ import { useTimelineSearchHighlight } from '@/hooks/use-timeline-search-highligh
 import { reloadForReconnectRecovery, shouldPromptMobileReloadRecovery } from '@/lib/ws-reload-recovery';
 import {
   captureTimelinePrependScroll,
+  createTimelineScrollAnchorId,
   releaseTimelinePrependScroll,
   restoreTimelinePrependScroll,
   type ITimelinePrependScrollSnapshot,
@@ -411,6 +412,25 @@ const groupTimelineEntries = (entries: ITimelineEntry[]): TGroupedItem[] => {
 
   flushToolBuffer();
   return result;
+};
+
+const getTimelineScrollAnchorId = (item: TGroupedItem): string => {
+  if (item.type === 'tool-group') {
+    const anchor = item.toolCalls[item.toolCalls.length - 1];
+    return createTimelineScrollAnchorId(
+      'tool-group',
+      anchor?.timestamp,
+      anchor?.toolUseId,
+      anchor?.toolName,
+      anchor?.summary,
+    );
+  }
+
+  return createTimelineScrollAnchorId(
+    item.entry.type,
+    item.entry.timestamp,
+    getEntryText(item.entry),
+  );
 };
 
 const InterruptItem = () => {
@@ -931,9 +951,7 @@ const TimelineView = ({
             <div
               key={item.id}
               data-timeline-item={item.id}
-              data-timeline-scroll-anchor={item.type === 'tool-group'
-                ? item.toolCalls[item.toolCalls.length - 1]?.id ?? item.id
-                : item.id}
+              data-timeline-scroll-anchor={getTimelineScrollAnchorId(item)}
               className={cn(
                 'px-4 py-1.5',
                 searchOpen && item.id === currentMatchId && 'rounded-md bg-claude-active/5 ring-2 ring-claude-active/40',

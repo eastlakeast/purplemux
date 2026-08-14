@@ -3,6 +3,7 @@ import {
   anchoredScrollTop,
   captureTimelinePrependScroll,
   calculateTimelineSpacerHeight,
+  createTimelineScrollAnchorId,
   findVisibleTimelineItem,
   prependAnchoredScrollTop,
   releaseTimelinePrependScroll,
@@ -32,7 +33,17 @@ describe('timeline scroll anchoring', () => {
 
   it('preserves scrollTop when no stable timeline item is visible', () => {
     expect(prependAnchoredScrollTop(0, null, 0, 0)).toBe(0);
-    expect(prependAnchoredScrollTop(300, null, 0, 180)).toBe(180);
+    expect(prependAnchoredScrollTop(300, null, 0, 180)).toBe(480);
+    expect(prependAnchoredScrollTop(20, null, 0, -80)).toBe(0);
+  });
+
+  it('creates stable anchor IDs from timeline content rather than parser IDs', () => {
+    const first = createTimelineScrollAnchorId('assistant-message', 1234, 'same response');
+    const reparsed = createTimelineScrollAnchorId('assistant-message', 1234, 'same response');
+    const changed = createTimelineScrollAnchorId('assistant-message', 1234, 'different response');
+
+    expect(reparsed).toBe(first);
+    expect(changed).not.toBe(first);
   });
 
   it('restores the same DOM item offset after prepending content', () => {
@@ -44,6 +55,7 @@ describe('timeline scroll anchoring', () => {
     const root = {
       isConnected: true,
       scrollTop: 0,
+      scrollHeight: 900,
       style: { overflowAnchor: 'auto' },
       getBoundingClientRect: () => ({ top: 100, bottom: 700 }),
       querySelectorAll: () => [item],
@@ -55,6 +67,7 @@ describe('timeline scroll anchoring', () => {
     expect(root.style.overflowAnchor).toBe('none');
 
     itemTop = 740;
+    Object.assign(root, { scrollHeight: 1492 });
     expect(restoreTimelinePrependScroll(snapshot)).toBe(true);
     expect(root.scrollTop).toBe(592);
 
