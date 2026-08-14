@@ -82,7 +82,7 @@ const handleWsUpgrade = (
     });
   } else if (url.pathname === '/api/sync') {
     syncWss.handleUpgrade(request, socket, head, (ws) => {
-      syncWss.emit('connection', ws);
+      syncWss.emit('connection', ws, request);
     });
   } else if (url.pathname === '/api/status') {
     statusWss.handleUpgrade(request, socket, head, (ws) => {

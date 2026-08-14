@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { verifyCliToken } from '@/lib/cli-token';
 import { findTab } from '@/lib/cli-utils';
-import { removeTabFromPane } from '@/lib/layout-store';
+import { removeTabFromPane, renameTabInPane } from '@/lib/layout-store';
 import { getProviderByPanelType } from '@/lib/providers';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
@@ -38,7 +38,29 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     return res.status(200).json({ ok });
   }
 
-  res.setHeader('Allow', 'GET, DELETE');
+  if (req.method === 'PATCH') {
+    const { name } = req.body ?? {};
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+    const found = await findTab(workspaceId, tabId);
+    if (!found) return res.status(404).json({ error: 'Tab not found' });
+    const tab = await renameTabInPane(workspaceId, found.paneId, tabId, name.trim());
+    if (!tab) return res.status(404).json({ error: 'Tab not found' });
+    const provider = getProviderByPanelType(tab.panelType);
+    return res.status(200).json({
+      tabId: tab.id,
+      workspaceId,
+      paneId: found.paneId,
+      name: tab.name,
+      sessionName: tab.sessionName,
+      panelType: tab.panelType,
+      agentProviderId: provider?.id ?? null,
+      agentSessionId: provider?.readSessionId(tab) ?? null,
+    });
+  }
+
+  res.setHeader('Allow', 'GET, PATCH, DELETE');
   return res.status(405).json({ error: 'Method not allowed' });
 };
 

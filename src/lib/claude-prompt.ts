@@ -25,12 +25,16 @@ so no environment setup is needed.
 
 \`\`\`bash
 purplemux workspaces                                # list all workspaces
+purplemux workspace create -n NAME [-g GROUP_PATH] [-d DIR]...  # create workspace; prints workspace ID
+purplemux workspace rename WS NEW_NAME              # rename a workspace
 purplemux tab list -w ${ws.id}                        # list tabs in this workspace
 purplemux tab create -w ${ws.id} [-n NAME] [-t TYPE] [-c CMD]  # create a tab (type: terminal | claude-code | codex-cli | agent-sessions | web-browser | diff)
+purplemux tab rename -w ${ws.id} TAB_ID NEW_NAME      # rename a tab
 purplemux tab send -w ${ws.id} TAB_ID CONTENT...      # send input to a tab
 purplemux tab status -w ${ws.id} TAB_ID               # tab status
 purplemux tab result -w ${ws.id} TAB_ID               # capture current pane content
 purplemux tab close -w ${ws.id} TAB_ID                # close a tab
+purplemux usage                                    # Claude/Codex usage and reset times
 \`\`\`
 
 If this workspace belongs to an enabled group agent team, these commands

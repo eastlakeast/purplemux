@@ -82,7 +82,9 @@ const useSync = () => {
     const connect = () => {
       if (!mountedRef.current) return;
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${location.host}/api/sync`);
+      const isElectron = Boolean((window as unknown as { electronAPI?: { isElectron?: boolean } }).electronAPI?.isElectron);
+      const clientQuery = isElectron ? '?client=electron' : '';
+      const ws = new WebSocket(`${protocol}//${location.host}/api/sync${clientQuery}`);
       wsRef.current = ws;
 
       ws.onmessage = (event) => {

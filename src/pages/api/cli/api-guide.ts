@@ -8,7 +8,17 @@ All endpoints require header \`x-pmux-token: <PMUX_TOKEN>\`.
 ## Workspaces
 
 GET /api/cli/workspaces
-  Response: { "workspaces": [{ "id": "...", "name": "...", "directories": [...] }] }
+  Response: { "workspaces": [{ "id": "...", "name": "...", "groupPath": "parent/child" | null, "directories": [...] }] }
+
+POST /api/cli/workspaces
+  Body: { "name": "...", "groupPath"?: "parent/child", "directories"?: ["~/workspace/project"] }
+  Creates missing groups along groupPath and appends the workspace inside the final group.
+  Requires a loaded local Electron app so the sidebar is updated immediately; otherwise returns HTTP 503.
+  Response: { "id": "ws-...", "name": "...", "groupPath": "parent/child" | null, "directories": [...] }
+
+PATCH /api/cli/workspaces/<workspaceId>
+  Body: { "name": "..." }
+  Rename a workspace.
 
 ## Tabs
 
@@ -26,6 +36,10 @@ GET /api/cli/tabs/<tabId>?workspaceId=WS
   Tab info.
   Response: { "tabId", "workspaceId", "paneId", "name", "sessionName", "panelType", "agentProviderId", "agentSessionId" }
 
+PATCH /api/cli/tabs/<tabId>?workspaceId=WS
+  Body: { "name": "..." }
+  Rename a tab.
+
 DELETE /api/cli/tabs/<tabId>?workspaceId=WS
   Close the tab (kills tmux session and removes from layout).
 
@@ -41,6 +55,13 @@ GET /api/cli/tabs/<tabId>/status?workspaceId=WS
 GET /api/cli/tabs/<tabId>/result?workspaceId=WS
   Capture the current pane content.
   Response: { "content": "...", "inputState": "empty" | "placeholder" | "typed" | "unavailable" | "unknown" | null }
+
+## LLM usage
+
+GET /api/cli/usage
+  Returns the same effective rate-limit windows shown in the sidebar. Expired cached
+  windows report 0% and the next calculated reset. Epoch values are seconds.
+  Response: { "providers": { "claude": { "updated_at", "updated_at_iso", "five_hour": { "used_percentage", "resets_at", "resets_at_iso", "resets_in_seconds" } | null, "seven_day": { ... } | null } | null, "codex": { ... } | null } }
 
 ## Group agent teams
 
@@ -91,6 +112,23 @@ POST /api/cli/tabs/<tabId>/browser/eval?workspaceId=WS
   Evaluates the expression in the webview via CDP Runtime.evaluate
   (returnByValue, awaitPromise, 10s timeout).
   Response: { "tabId", "value" }
+
+## CLI commands
+
+purplemux workspaces
+  List workspaces, including groupPath.
+
+purplemux workspace create -n NAME [-g GROUP_PATH] [-d DIRECTORY]...
+  Create a workspace. Prints only the new workspace ID to stdout.
+
+purplemux workspace rename WS NEW_NAME
+  Rename a workspace.
+
+purplemux tab rename -w WS TAB_ID NEW_NAME
+  Rename a tab.
+
+purplemux usage
+  Print Claude and Codex usage percentages and reset times as JSON.
 `;
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {

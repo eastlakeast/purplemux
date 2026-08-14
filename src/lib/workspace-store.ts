@@ -25,6 +25,10 @@ import {
   normalizeWorkspaceHierarchy,
   removeWorkspaceGroupFromHierarchy,
 } from '@/lib/workspace-order';
+import {
+  ensureWorkspaceGroupPath,
+  parseWorkspaceGroupPath,
+} from '@/lib/workspace-group-path';
 import { isWorkspaceGroupColor } from '@/lib/workspace-group-colors';
 import type {
   IWorkspace,
@@ -414,36 +418,101 @@ export const getWorkspaceById = async (wsId: string): Promise<IWorkspace | undef
   return data?.workspaces.find((w) => w.id === wsId);
 };
 
-export const createWorkspace = async (directory: string, name?: string, layoutOptions?: ICreateLayoutOptions): Promise<IWorkspace> =>
-  withLock(async () => {
+const resolveWorkspaceDirectory = (directory: string): string => {
+  const trimmed = directory.trim();
+  if (trimmed === '~') return os.homedir();
+  if (trimmed.startsWith('~/')) return path.join(os.homedir(), trimmed.slice(2));
+  return trimmed;
+};
+
+const validateWorkspaceDirectories = async (directories: string[]): Promise<string[]> => {
+  const resolved = [...new Set(directories.map(resolveWorkspaceDirectory).filter(Boolean))];
+  if (resolved.length === 0) resolved.push(os.homedir());
+
+  for (const directory of resolved) {
     let stat;
     try {
       stat = await fs.stat(directory);
     } catch {
-      throw new Error('Directory does not exist');
+      throw new Error(`Directory does not exist: ${directory}`);
     }
-
     if (!stat.isDirectory()) {
-      throw new Error('Please enter a directory path, not a file');
+      throw new Error(`Please enter a directory path, not a file: ${directory}`);
     }
+  }
+  return resolved;
+};
+
+export interface ICreateWorkspaceDetails {
+  directories: string[];
+  name?: string;
+  groupPath?: string;
+  layoutOptions?: ICreateLayoutOptions;
+}
+
+export const createWorkspaceWithDetails = async ({
+  directories,
+  name,
+  groupPath,
+  layoutOptions,
+}: ICreateWorkspaceDetails): Promise<IWorkspace> =>
+  withLock(async () => {
+    const resolvedDirectories = await validateWorkspaceDirectories(directories);
+    const groupSegments = groupPath === undefined ? [] : parseWorkspaceGroupPath(groupPath);
 
     const data = (await readWorkspacesFile()) ?? emptyState();
+    const hierarchy = normalizeWorkspaceHierarchy(
+      data.workspaces,
+      ensureGroups(data),
+      data.sidebarOrder,
+    );
+    data.workspaces = hierarchy.workspaces;
+    data.groups = hierarchy.groups;
+    data.sidebarOrder = hierarchy.sidebarOrder;
+
+    const groupResult = ensureWorkspaceGroupPath(
+      data.groups,
+      data.sidebarOrder,
+      groupSegments,
+      () => `grp-${nanoid(6)}`,
+    );
+    data.groups = groupResult.groups;
+    data.sidebarOrder = groupResult.sidebarOrder;
 
     const wsId = `ws-${nanoid(6)}`;
     const wsName = name?.trim() || nextWorkspaceName(data.workspaces);
 
-    const layout = await createDefaultLayout(wsId, directory, layoutOptions);
+    const layout = await createDefaultLayout(wsId, resolvedDirectories[0], layoutOptions);
     await fs.mkdir(resolveLayoutDir(wsId), { recursive: true });
     await writeLayoutFile(layout, resolveLayoutFile(wsId));
 
-    const workspace: IWorkspace = { id: wsId, name: wsName, directories: [directory] };
+    const workspace: IWorkspace = {
+      id: wsId,
+      name: wsName,
+      directories: resolvedDirectories,
+      ...(groupResult.groupId ? { groupId: groupResult.groupId } : {}),
+    };
     data.workspaces.push(workspace);
+    const workspaceOrder = groupResult.groupId
+      ? data.groups.find((group) => group.id === groupResult.groupId)?.childOrder
+      : data.sidebarOrder;
+    workspaceOrder?.push({ type: 'workspace', id: wsId });
     await writeWorkspacesFile(data);
     await writeWorkspacePrompts(workspace);
 
-    log.debug(`Created: ${wsId} (${wsName}, ${directory})`);
+    log.debug(`Created: ${wsId} (${wsName}, ${resolvedDirectories.join(', ')})`);
     return workspace;
   });
+
+export const createWorkspace = async (
+  directory: string,
+  name?: string,
+  layoutOptions?: ICreateLayoutOptions,
+): Promise<IWorkspace> => createWorkspaceWithDetails({
+  directories: [directory],
+  name,
+  layoutOptions,
+});
 
 export interface IWorkspaceTabTransferResult extends ITabWorkspaceLayoutTransferResult {
   targetWorkspace: IWorkspace;

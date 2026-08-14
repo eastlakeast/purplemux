@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import useRateLimitsStore from '@/hooks/use-rate-limits-store';
 import type { IRateLimitWindow, IRateLimitsData, TRateLimitsProvider } from '@/types/status';
+import {
+  getEffectiveRateLimitWindow,
+  RATE_LIMIT_PERIOD_SECONDS,
+  type TRateLimitPeriod,
+} from '@/lib/rate-limits-usage';
 import ClaudeCodeIcon from '@/components/icons/claude-code-icon';
 import OpenAIIcon from '@/components/icons/openai-icon';
 import {
@@ -10,26 +15,15 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-const PERIOD_SECS = { '5h': 5 * 3600, '7d': 7 * 86400 } as const;
-type TLimitLabel = keyof typeof PERIOD_SECS;
-
-const getEffectiveWindow = (window: IRateLimitWindow, label: TLimitLabel) => {
-  const nowSecs = Date.now() / 1000;
-  if (window.resets_at > nowSecs) {
-    return { resetsAt: window.resets_at, usedPct: window.used_percentage };
-  }
-  const elapsed = nowSecs - window.resets_at;
-  const period = PERIOD_SECS[label];
-  const nextResetsAt = window.resets_at + Math.ceil(elapsed / period) * period;
-  return { resetsAt: nextResetsAt, usedPct: 0 };
-};
+const LIMIT_PERIODS = { '5h': 'five_hour', '7d': 'seven_day' } as const;
+type TLimitLabel = keyof typeof LIMIT_PERIODS;
 
 const getProjectedPct = (
   usedPct: number,
   resetsAt: number,
   label: TLimitLabel,
 ): number => {
-  const period = PERIOD_SECS[label];
+  const period = RATE_LIMIT_PERIOD_SECONDS[LIMIT_PERIODS[label]];
   const remaining = Math.max(0, resetsAt - Date.now() / 1000);
   const elapsed = period - remaining;
   if (elapsed <= 0) return usedPct;
@@ -54,7 +48,12 @@ const barColor = (pct: number): string => {
 };
 
 const LimitBar = ({ label, window }: { label: TLimitLabel; window: IRateLimitWindow }) => {
-  const { resetsAt, usedPct } = getEffectiveWindow(window, label);
+  const effective = getEffectiveRateLimitWindow(
+    window,
+    LIMIT_PERIODS[label] as TRateLimitPeriod,
+  );
+  const resetsAt = effective.resets_at;
+  const usedPct = effective.used_percentage;
   const pct = Math.min(100, Math.round(usedPct));
   const projectedPct = Math.min(100, Math.round(getProjectedPct(usedPct, resetsAt, label)));
   const remaining = formatRemaining(resetsAt);
