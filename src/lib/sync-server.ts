@@ -1,4 +1,5 @@
 import { WebSocket } from 'ws';
+import type { IncomingMessage } from 'http';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('sync');
@@ -29,12 +30,15 @@ type TSyncEvent =
 
 const g = globalThis as unknown as {
   __ptSyncClients?: Set<WebSocket>;
+  __ptElectronSyncClients?: Set<WebSocket>;
   __ptPendingToasts?: Map<string, ISystemToastEvent>;
 };
 if (!g.__ptSyncClients) g.__ptSyncClients = new Set();
+if (!g.__ptElectronSyncClients) g.__ptElectronSyncClients = new Set();
 if (!g.__ptPendingToasts) g.__ptPendingToasts = new Map();
 
 const clients = g.__ptSyncClients;
+const electronClients = g.__ptElectronSyncClients;
 const pendingToasts = g.__ptPendingToasts;
 
 const sendToOne = (ws: WebSocket, payload: string) => {
@@ -43,15 +47,21 @@ const sendToOne = (ws: WebSocket, payload: string) => {
   }
 };
 
-export const handleSyncConnection = (ws: WebSocket) => {
+export const handleSyncConnection = (ws: WebSocket, request?: IncomingMessage) => {
   clients.add(ws);
+  const url = new URL(request?.url ?? '/api/sync', 'http://localhost');
+  if (url.searchParams.get('client') === 'electron') electronClients.add(ws);
   for (const toast of pendingToasts.values()) {
     sendToOne(ws, JSON.stringify(toast));
   }
-  ws.on('close', () => clients.delete(ws));
+  ws.on('close', () => {
+    clients.delete(ws);
+    electronClients.delete(ws);
+  });
   ws.on('error', (err) => {
     log.error(`websocket error: ${err.message}`);
     clients.delete(ws);
+    electronClients.delete(ws);
   });
 };
 
@@ -61,6 +71,9 @@ export const broadcastSync = (event: TSyncEvent) => {
   const msg = JSON.stringify(event);
   for (const ws of clients) sendToOne(ws, msg);
 };
+
+export const hasLiveElectronSyncClient = (): boolean =>
+  [...electronClients].some((ws) => ws.readyState === WebSocket.OPEN);
 
 export const enqueueSystemToast = (toast: ISystemToastEvent): void => {
   pendingToasts.set(toast.key, toast);
@@ -78,4 +91,5 @@ export const gracefulSyncShutdown = () => {
     }
   }
   clients.clear();
+  electronClients.clear();
 };
