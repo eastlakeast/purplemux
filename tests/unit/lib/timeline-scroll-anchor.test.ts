@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   anchoredScrollTop,
+  captureTimelinePrependScroll,
   calculateTimelineSpacerHeight,
   findVisibleTimelineItem,
+  prependAnchoredScrollTop,
+  releaseTimelinePrependScroll,
+  restoreTimelinePrependScroll,
 } from '@/lib/timeline-scroll-anchor';
 
 describe('timeline scroll anchoring', () => {
@@ -19,6 +23,43 @@ describe('timeline scroll anchoring', () => {
   it('keeps the captured item at the same viewport offset after reflow', () => {
     expect(anchoredScrollTop(500, 140, 40)).toBe(600);
     expect(anchoredScrollTop(20, -80, 40)).toBe(0);
+  });
+
+  it('keeps the captured item offset when older content is prepended', () => {
+    expect(prependAnchoredScrollTop(0, 640, 48, 0)).toBe(592);
+    expect(prependAnchoredScrollTop(220, 712, 52, 220)).toBe(880);
+  });
+
+  it('preserves scrollTop when no stable timeline item is visible', () => {
+    expect(prependAnchoredScrollTop(0, null, 0, 0)).toBe(0);
+    expect(prependAnchoredScrollTop(300, null, 0, 180)).toBe(180);
+  });
+
+  it('restores the same DOM item offset after prepending content', () => {
+    let itemTop = 148;
+    const item = {
+      dataset: { timelineScrollAnchor: 'stable-item' },
+      getBoundingClientRect: () => ({ top: itemTop, bottom: itemTop + 80 }),
+    } as unknown as HTMLElement;
+    const root = {
+      isConnected: true,
+      scrollTop: 0,
+      style: { overflowAnchor: 'auto' },
+      getBoundingClientRect: () => ({ top: 100, bottom: 700 }),
+      querySelectorAll: () => [item],
+    } as unknown as HTMLElement;
+
+    const snapshot = captureTimelinePrependScroll(root);
+    expect(snapshot.itemId).toBe('stable-item');
+    expect(snapshot.itemOffset).toBe(48);
+    expect(root.style.overflowAnchor).toBe('none');
+
+    itemTop = 740;
+    expect(restoreTimelinePrependScroll(snapshot)).toBe(true);
+    expect(root.scrollTop).toBe(592);
+
+    releaseTimelinePrependScroll(snapshot);
+    expect(root.style.overflowAnchor).toBe('auto');
   });
 
   it('consumes pinned bottom space as response content grows', () => {
