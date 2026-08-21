@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { buildGlobalRulesSection, loadGlobalRules } from '@/lib/global-rules';
 import { resolveLayoutDir } from '@/lib/layout-store';
 import type { IWorkspace } from '@/types/terminal';
 
@@ -103,7 +104,10 @@ purplemux tab create -w ${ws.id} -t claude-code -c "claude --settings ~/.purplem
 export const writeCodexPromptFile = async (ws: IWorkspace): Promise<void> => {
   const filePath = getCodexPromptPath(ws.id);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const body = buildCodexPromptBody(ws);
+  const rules = await loadGlobalRules();
+  const body = rules
+    ? buildCodexPromptBody(ws) + sanitizeForTomlTripleQuote(buildGlobalRulesSection(rules))
+    : buildCodexPromptBody(ws);
   try {
     const existing = await fs.readFile(filePath, 'utf-8');
     if (existing === body) return;
