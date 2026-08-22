@@ -1,14 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { verifyCliToken } from '@/lib/cli-token';
-import { getWorkspaces, renameWorkspace } from '@/lib/workspace-store';
+import { deleteWorkspace, getWorkspaces, renameWorkspace } from '@/lib/workspace-store';
 import { getWorkspaceGroupPath } from '@/lib/workspace-group-path';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (!verifyCliToken(req)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
+  if (req.method === 'DELETE') {
+    const workspaceId = req.query.workspaceId as string;
+    const deleted = await deleteWorkspace(workspaceId);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
+    return res.status(200).json({ ok: true, id: workspaceId });
+  }
   if (req.method !== 'PATCH') {
-    res.setHeader('Allow', 'PATCH');
+    res.setHeader('Allow', 'PATCH, DELETE');
     return res.status(405).json({ error: 'Method not allowed' });
   }
 

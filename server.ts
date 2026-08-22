@@ -28,6 +28,7 @@ import { getCurrentSpec, initAccessFilter, isRequestAllowed, setBoundHost } from
 import { initShellPath } from './src/lib/preflight';
 import { cleanupExpiredUploads } from './src/lib/uploads-store';
 import { cleanupOrphanSessionStats } from './src/lib/session-stats';
+import { startTeamReplyDispatcher, stopTeamReplyDispatcher } from './src/lib/team-reply-queue';
 import { createLogger } from './src/lib/logger';
 import { LOCAL_FILE_REMOTE_ADDRESS_HEADER } from './src/lib/local-file-server';
 import pkg from './package.json';
@@ -265,6 +266,7 @@ const startDev = async (port: number, appDir: string, bindHost: string): Promise
   });
 
   const shutdown = async () => {
+    stopTeamReplyDispatcher();
     releaseLock();
     await removePortFile();
     server.close();
@@ -334,6 +336,7 @@ const startProd = async (port: number, appDir: string, bindHost: string): Promis
   });
 
   const shutdown = async () => {
+    stopTeamReplyDispatcher();
     releaseLock();
     await removePortFile();
     server.close();
@@ -375,6 +378,7 @@ export const start = async (opts?: IStartOptions): Promise<IStartResult> => {
   await initWorkspaceStore();
   await autoResumeOnStartup();
   await getStatusManager().init();
+  startTeamReplyDispatcher();
 
   const envHost = process.env.HOST?.trim();
   const configData = await getConfig();

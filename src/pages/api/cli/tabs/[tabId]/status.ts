@@ -4,6 +4,7 @@ import { findTab } from '@/lib/cli-utils';
 import { hasSession, getPaneCurrentCommand } from '@/lib/tmux';
 import { getProviderByPanelType } from '@/lib/providers';
 import { detectAgentInputState } from '@/lib/agent-input-state';
+import { getStatusManager } from '@/lib/status-manager';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== 'GET') {
@@ -25,15 +26,19 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
 
   const provider = getProviderByPanelType(found.tab.panelType);
   const agentSessionId = provider?.readSessionId(found.tab) ?? null;
+  const liveStatus = getStatusManager().getTabForClient(tabId);
   const alive = await hasSession(found.tab.sessionName);
   if (!alive) {
     return res.status(200).json({
       tabId,
       workspaceId,
+      sessionName: found.tab.sessionName,
       alive: false,
       agentProviderId: provider?.id ?? null,
       agentSessionId,
       claudeSessionId: agentSessionId,
+      cliState: liveStatus?.cliState ?? found.tab.cliState ?? null,
+      pendingQuestions: liveStatus?.pendingQuestions ?? null,
       inputState: null,
     });
   }
@@ -45,13 +50,15 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   return res.status(200).json({
     tabId,
     workspaceId,
+    sessionName: found.tab.sessionName,
     alive: true,
     command,
-    cliState: found.tab.cliState ?? null,
+    cliState: liveStatus?.cliState ?? found.tab.cliState ?? null,
     agentProviderId: provider?.id ?? null,
     agentSessionId,
     // Response key kept as `claudeSessionId` for back-compat with external CLI consumers.
     claudeSessionId: agentSessionId,
+    pendingQuestions: liveStatus?.pendingQuestions ?? null,
     inputState,
   });
 };

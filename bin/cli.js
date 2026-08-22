@@ -119,6 +119,17 @@ const cmdWorkspaceRename = async (args) => {
   out(body);
 };
 
+const cmdWorkspaceDelete = async (args) => {
+  requireEnv();
+  const workspaceId = args[0];
+  if (!workspaceId) die('workspace ID is required');
+  const { body } = await api(
+    'DELETE',
+    `/api/cli/workspaces/${encodeURIComponent(workspaceId)}`,
+  );
+  out(body);
+};
+
 const cmdUsage = async () => {
   requireEnv();
   const { body } = await api('GET', '/api/cli/usage');
@@ -195,6 +206,14 @@ const cmdTeamReply = async (args) => {
   out(body);
 };
 
+const cmdTeamInbox = async (args) => {
+  requireEnv();
+  const context = teamContext(args);
+  const params = new URLSearchParams(context);
+  const { body } = await api('GET', `/api/cli/team/inbox?${params.toString()}`);
+  out(body);
+};
+
 const cmdTeamStatus = async (args) => {
   requireEnv();
   const rest = stripFlags(args, ['--workspace', '-w']);
@@ -247,12 +266,16 @@ const cmdTabCreate = async (args) => {
   const name = flagValue(args, '--name') || flagValue(args, '-n');
   const panelType = flagValue(args, '--type') || flagValue(args, '-t');
   const command = flagValue(args, '--command') || flagValue(args, '-c');
+  const preset = flagValue(args, '--preset');
+  const mcpConfigs = flagValues(args, ['--mcp-config']).map(resolveCliDirectory);
   if (!wsId) die('--workspace is required');
   const { body } = await api('POST', '/api/cli/tabs', {
     workspaceId: wsId,
     ...(name ? { name } : {}),
     ...(panelType ? { panelType } : {}),
     ...(command ? { command } : {}),
+    ...(preset ? { preset } : {}),
+    ...(mcpConfigs.length > 0 ? { mcpConfigs } : {}),
   });
   out(body);
 };
@@ -265,7 +288,8 @@ const resolveWsForTab = (args) => {
 
 const cmdTabSend = async (args) => {
   requireEnv();
-  const rest = stripFlags(args, ['--workspace', '-w']);
+  const replace = args.includes('--replace');
+  const rest = stripBooleanFlags(stripFlags(args, ['--workspace', '-w']), ['--replace']);
   const tabId = rest[0];
   const content = rest.slice(1).join(' ');
   if (!tabId) die('tab ID is required');
@@ -274,7 +298,77 @@ const cmdTabSend = async (args) => {
   const { body } = await api(
     'POST',
     `/api/cli/tabs/${tabId}/send?workspaceId=${encodeURIComponent(wsId)}`,
-    { content },
+    { content, ...(replace ? { mode: 'replace' } : {}) },
+  );
+  out(body);
+};
+
+const cmdTabKeys = async (args) => {
+  requireEnv();
+  const rest = stripFlags(args, ['--workspace', '-w']);
+  const tabId = rest[0];
+  const keys = rest.slice(1);
+  if (!tabId) die('tab ID is required');
+  if (keys.length === 0) die('one or more named keys are required');
+  const wsId = resolveWsForTab(args);
+  const { body } = await api(
+    'POST',
+    `/api/cli/tabs/${encodeURIComponent(tabId)}/keys?workspaceId=${encodeURIComponent(wsId)}`,
+    { keys },
+  );
+  out(body);
+};
+
+const cmdTabClear = async (args) => {
+  requireEnv();
+  const rest = stripFlags(args, ['--workspace', '-w']);
+  const tabId = rest[0];
+  if (!tabId) die('tab ID is required');
+  const wsId = resolveWsForTab(args);
+  const { body } = await api(
+    'POST',
+    `/api/cli/tabs/${encodeURIComponent(tabId)}/keys?workspaceId=${encodeURIComponent(wsId)}`,
+    { keys: ['C-u'] },
+  );
+  out(body);
+};
+
+const parseOptionList = (raw) => raw.split(',').map((value) => Number(value.trim()));
+
+const cmdTabAnswer = async (args) => {
+  requireEnv();
+  const rest = stripFlags(args, [
+    '--workspace', '-w', '--option', '--options', '--text', '--answers-json',
+  ]);
+  const tabId = rest[0];
+  if (!tabId) die('tab ID is required');
+  const wsId = resolveWsForTab(args);
+  const answersJson = flagValue(args, '--answers-json');
+  const option = flagValue(args, '--option');
+  const options = flagValue(args, '--options');
+  const text = flagValue(args, '--text');
+  const supplied = [answersJson, option, options, text].filter((value) => value !== null);
+  if (supplied.length !== 1) {
+    die('provide exactly one of --option, --options, --text, or --answers-json');
+  }
+  let answers;
+  if (answersJson) {
+    try {
+      answers = JSON.parse(answersJson);
+    } catch {
+      die('--answers-json must be valid JSON');
+    }
+  } else if (option) {
+    answers = [{ option: Number(option) }];
+  } else if (options) {
+    answers = [{ options: parseOptionList(options) }];
+  } else {
+    answers = [{ text }];
+  }
+  const { body } = await api(
+    'POST',
+    `/api/cli/tabs/${encodeURIComponent(tabId)}/answer?workspaceId=${encodeURIComponent(wsId)}`,
+    { answers },
   );
   out(body);
 };
@@ -412,6 +506,42 @@ const cmdApiGuide = async () => {
   process.stdout.write((await resp.text()) + '\n');
 };
 
+const cmdEvents = async (args, requireTab = false) => {
+  requireEnv();
+  const wsId = flagValue(args, '--workspace') || flagValue(args, '-w');
+  const rest = stripFlags(args, ['--workspace', '-w']);
+  const tabId = rest[0];
+  if (requireTab && !tabId) die('tab ID is required');
+  const params = new URLSearchParams();
+  if (wsId) params.set('workspaceId', wsId);
+  if (tabId) params.set('tabId', tabId);
+  const suffix = params.size > 0 ? `?${params.toString()}` : '';
+  const resp = await fetchOrDie(`${BASE}/api/cli/events${suffix}`, {
+    headers: { 'X-Pmux-Token': TOKEN, Accept: 'text/event-stream' },
+  });
+  if (!resp.ok) die(`HTTP ${resp.status}`);
+  if (!resp.body) die('event stream is unavailable');
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+    let boundary;
+    while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+      const block = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const data = block.split('\n')
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trimStart())
+        .join('\n');
+      if (data) process.stdout.write(`${data}\n`);
+    }
+    if (done) break;
+  }
+};
+
 const flagValue = (args, name) => {
   const idx = args.indexOf(name);
   if (idx === -1 || idx + 1 >= args.length) return null;
@@ -443,6 +573,8 @@ const stripFlags = (args, names) => {
   return result;
 };
 
+const stripBooleanFlags = (args, names) => args.filter((arg) => !names.includes(arg));
+
 const usage = () => {
   process.stdout.write(`purplemux CLI
 
@@ -453,12 +585,21 @@ Commands:
   workspace create -n NAME [-g GROUP_PATH] [-d DIR]...
                                           Create a workspace and print its workspace ID
   workspace rename WS NEW_NAME            Rename a workspace
+  workspace delete WS                     Delete a workspace and all of its tabs
   tab list [-w WS]                         List tabs (optionally scoped to workspace)
   tab create -w WS [-n NAME] [-t TYPE] [-c CMD]
                                           Create a tab in workspace (type: terminal | claude-code | codex-cli | agent-sessions | web-browser | diff)
-  tab send -w WS TAB_ID CONTENT...         Send input to a tab
+               [--preset naive] [--mcp-config FILE]...
+                                          Create an uncustomized Claude worker while retaining purplemux hooks
+  tab send -w WS TAB_ID [--replace] CONTENT...
+                                          Send input; --replace clears typed input first
+  tab clear -w WS TAB_ID                  Clear unsubmitted input
+  tab keys -w WS TAB_ID KEY...            Send named interactive keys (Down, Enter, C-u, ...)
+  tab answer -w WS TAB_ID --option N      Answer one AskUserQuestion option (1-based)
+             [--options N,N | --text TEXT | --answers-json JSON]
   tab status -w WS TAB_ID                  Tab status
   tab result -w WS TAB_ID                  Capture tab pane content
+  tab watch -w WS TAB_ID                   Stream tab state transitions as JSON Lines
   tab close -w WS TAB_ID                   Close a tab
   tab rename -w WS TAB_ID NEW_NAME         Rename a tab
   tab browser url -w WS TAB_ID             Current URL + title of a web-browser tab
@@ -473,9 +614,11 @@ Commands:
   team members [-w WS]                     Alias for team show
   team send [-w WS] TARGET CONTENT...      Dispatch a task to a worker alias or all (orchestrator only)
   team reply [-w WS] CONTENT...             Report to the orchestrator (worker only)
+  team inbox [-w WS]                       Inspect replies still queued for the orchestrator
   team status [-w WS] [TARGET]             Show status for all members or one alias
   team result [-w WS] TARGET               Capture one member's current pane content
   usage                                    Show Claude and Codex usage percentages and reset times
+  events [-w WS] [TAB_ID]                  Stream state transitions as JSON Lines
   api-guide                                Print full HTTP API reference
   help                                     Show this usage
 
@@ -499,6 +642,7 @@ const main = async () => {
         case 'list': return cmdWorkspaces();
         case 'create': return cmdWorkspaceCreate(rest);
         case 'rename': return cmdWorkspaceRename(rest);
+        case 'delete': return cmdWorkspaceDelete(rest);
         default: die(`unknown workspace command: ${sub || '(none)'}. Run 'purplemux help' for usage.`);
       }
       break;
@@ -507,8 +651,12 @@ const main = async () => {
         case 'list': return cmdTabList(rest);
         case 'create': return cmdTabCreate(rest);
         case 'send': return cmdTabSend(rest);
+        case 'clear': return cmdTabClear(rest);
+        case 'keys': return cmdTabKeys(rest);
+        case 'answer': return cmdTabAnswer(rest);
         case 'status': return cmdTabStatus(rest);
         case 'result': return cmdTabResult(rest);
+        case 'watch': return cmdEvents(rest, true);
         case 'close': return cmdTabClose(rest);
         case 'rename': return cmdTabRename(rest);
         case 'browser': return cmdTabBrowser(rest);
@@ -523,6 +671,7 @@ const main = async () => {
         case 'members': return cmdTeamShow(rest);
         case 'send': return cmdTeamSend(rest);
         case 'reply': return cmdTeamReply(rest);
+        case 'inbox': return cmdTeamInbox(rest);
         case 'status': return cmdTeamStatus(rest);
         case 'result': return cmdTeamResult(rest);
         default: die(`unknown team command: ${sub || '(none)'}. Run 'purplemux help' for usage.`);
@@ -530,6 +679,8 @@ const main = async () => {
       break;
     case 'api-guide':
       return cmdApiGuide();
+    case 'events':
+      return cmdEvents(args.slice(1));
     case 'help':
     case '-h':
     case '--help':

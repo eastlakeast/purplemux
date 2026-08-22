@@ -72,8 +72,9 @@ describe('Claude Code input state', () => {
     expect(getAgentInputBlockReason('unavailable', 'needs-input')).toBe('unavailable');
   });
 
-  it('always blocks typed and unknown input states', () => {
+  it('allows unknown input while busy but always blocks typed input', () => {
     expect(getAgentInputBlockReason('typed', 'busy')).toBe('typed');
+    expect(getAgentInputBlockReason('unknown', 'busy')).toBeNull();
     expect(getAgentInputBlockReason('unknown', 'idle')).toBe('unknown');
     expect(getAgentInputBlockReason('placeholder', 'idle')).toBeNull();
     expect(getAgentInputBlockReason('empty', 'idle')).toBeNull();

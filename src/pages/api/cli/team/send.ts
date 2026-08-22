@@ -10,6 +10,7 @@ import {
   resolveWorkspaceTeamContext,
   type IResolvedWorkspaceTeamMember,
 } from '@/lib/workspace-team';
+import { getStatusManager } from '@/lib/status-manager';
 
 interface ISendResult {
   alias: string;
@@ -102,7 +103,8 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         () => assertAgentInputAvailable(
           workerSessionName,
           worker.panelType ?? undefined,
-          worker.cliState,
+          (worker.tabId ? getStatusManager().getTabForClient(worker.tabId)?.cliState : null)
+            ?? worker.cliState,
         ),
       );
       results.push({

@@ -103,6 +103,7 @@ class StatusManager {
   private pollingTimer: ReturnType<typeof setInterval> | null = null;
   private currentInterval = 0;
   private clients = new Set<WebSocket>();
+  private eventListeners = new Set<(event: object) => void>();
   private initialized = false;
   private rateLimitsWatcher: ReturnType<typeof createRateLimitsWatcher> | null = null;
   private lastRateLimits: IRateLimitsCache | null = null;
@@ -503,6 +504,10 @@ class StatusManager {
       };
     }
     return result;
+  }
+
+  getTabForClient(tabId: string): IClientTabStatusEntry | null {
+    return this.getAllForClient()[tabId] ?? null;
   }
 
   private applyCliState(tabId: string, entry: ITabStatusEntry, newState: TCliState, opts: { silent?: boolean } = {}): void {
@@ -1080,6 +1085,11 @@ class StatusManager {
     this.clients.delete(ws);
   }
 
+  subscribe(listener: (event: object) => void): () => void {
+    this.eventListeners.add(listener);
+    return () => { this.eventListeners.delete(listener); };
+  }
+
   private persistToLayout(entry: ITabStatusEntry): void {
     updateTabCliStatus(entry.tmuxSession, entry.cliState, entry.dismissedAt).catch(() => {});
   }
@@ -1132,6 +1142,13 @@ class StatusManager {
     for (const ws of this.clients) {
       if (ws !== exclude && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < StatusManager.BACKPRESSURE_LIMIT) {
         ws.send(msg);
+      }
+    }
+    for (const listener of this.eventListeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        log.warn({ err: error instanceof Error ? error.message : error }, 'status event listener failed');
       }
     }
   }
@@ -1294,6 +1311,7 @@ class StatusManager {
       }
     }
     this.clients.clear();
+    this.eventListeners.clear();
   }
 
   notifyLastUserMessage(sessionName: string, message: string): void {
