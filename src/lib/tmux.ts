@@ -393,6 +393,27 @@ export const sendRawKeys = async (
   });
 };
 
+export interface ITmuxInputStep {
+  type: 'key' | 'literal';
+  value: string;
+}
+
+/** Send a mixed key/literal sequence under one per-session lock. */
+export const sendInputSequence = async (
+  sessionName: string,
+  sequence: readonly ITmuxInputStep[],
+): Promise<void> => {
+  await withTmuxSendLock(sessionName, async () => {
+    await exitCopyMode(sessionName);
+    for (const item of sequence) {
+      const args = item.type === 'literal'
+        ? ['-L', TMUX_SOCKET, 'send-keys', '-l', '-t', sessionName, item.value]
+        : ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, item.value];
+      await execFile('tmux', args, { timeout: CMD_TIMEOUT });
+    }
+  });
+};
+
 export const sendLiteralInput = async (
   sessionName: string,
   input: string,
@@ -412,10 +433,18 @@ export const sendBracketedPaste = async (
   sessionName: string,
   content: string,
   beforeSend?: () => Promise<void>,
+  replaceExisting = false,
 ): Promise<void> => {
   await withTmuxSendLock(sessionName, async () => {
     await beforeSend?.();
     await exitCopyMode(sessionName);
+    if (replaceExisting) {
+      await execFile(
+        'tmux',
+        ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, 'C-u'],
+        { timeout: CMD_TIMEOUT },
+      );
+    }
     await execFile(
       'tmux',
       ['-L', TMUX_SOCKET, 'send-keys', '-t', sessionName, '-l', `\x1b[200~${content}\x1b[201~`],

@@ -112,7 +112,11 @@ export const getAgentInputBlockReason = (
   inputState: TAgentInputState | null,
   cliState: TCliState | null | undefined,
 ): AgentInputBlockedError['inputState'] | null => {
-  if (inputState === 'typed' || inputState === 'unknown') return inputState;
+  if (inputState === 'typed') return inputState;
+  // A busy agent owns the terminal and tmux safely queues pasted input for its
+  // next prompt. Claude overlays can hide the editor and make classification
+  // unknown even though there is no user-authored input to overwrite.
+  if (inputState === 'unknown' && cliState !== 'busy') return inputState;
   if (inputState === 'unavailable' && cliState !== 'busy') return inputState;
   return null;
 };

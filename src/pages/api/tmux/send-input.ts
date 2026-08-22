@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { hasSession, sendLiteralInput, sendRawKeys } from '@/lib/tmux';
+import { hasSession, sendInputSequence } from '@/lib/tmux';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('tmux');
@@ -50,13 +50,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   try {
-    for (const item of inputSequence) {
-      if (item.type === 'literal') {
-        await sendLiteralInput(session, item.value);
-      } else {
-        await sendRawKeys(session, item.value);
-      }
-    }
+    await sendInputSequence(session, inputSequence);
     return res.status(200).json({ ok: true });
   } catch (err) {
     log.error(`send-input failed: ${err instanceof Error ? err.message : err}`);

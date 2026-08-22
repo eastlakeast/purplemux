@@ -20,6 +20,10 @@ PATCH /api/cli/workspaces/<workspaceId>
   Body: { "name": "..." }
   Rename a workspace.
 
+DELETE /api/cli/workspaces/<workspaceId>
+  Delete a workspace, kill all of its tmux sessions, and update the sidebar.
+  Response: { "ok": true, "id": "ws-..." }
+
 ## Tabs
 
 GET /api/cli/tabs?workspaceId=WS
@@ -27,8 +31,10 @@ GET /api/cli/tabs?workspaceId=WS
   Response: { "tabs": [{ "tabId", "workspaceId", "name", "sessionName", "panelType", "agentProviderId", "agentSessionId" }] }
 
 POST /api/cli/tabs
-  Body: { "workspaceId": "WS", "name"?: "...", "panelType"?: "terminal" | "claude-code" | "codex-cli" | "agent-sessions" | "web-browser" | "diff" }
+  Body: { "workspaceId": "WS", "name"?: "...", "panelType"?: "terminal" | "claude-code" | "codex-cli" | "agent-sessions" | "web-browser" | "diff", "command"?: "...", "preset"?: "naive", "mcpConfigs"?: ["/path/to/mcp.json"] }
   Invalid panelType returns HTTP 400 with validPanelTypes.
+  The naive preset creates a Claude Code tab with user/project/local settings disabled,
+  while retaining purplemux hooks and only explicitly supplied MCP configs.
   Creates a tab in the first pane of the workspace.
   Response: { "tabId", "workspaceId", "paneId", "sessionName", "name", "panelType", "agentProviderId", "agentSessionId" }
 
@@ -44,17 +50,34 @@ DELETE /api/cli/tabs/<tabId>?workspaceId=WS
   Close the tab (kills tmux session and removes from layout).
 
 POST /api/cli/tabs/<tabId>/send?workspaceId=WS
-  Body: { "content": "..." }
+  Body: { "content": "...", "mode"?: "safe" | "replace" }
   Send text (bracketed paste) to the tab. Claude Code input is checked immediately
-  before delivery; HTTP 409 is returned for typed or unknown input.
-  Response: { "status": "sent" }
+  before safe delivery. Busy agents accept unavailable/unknown editor states for queued
+  input. Replace mode explicitly clears existing typed input with C-u before sending.
+  Response: { "status": "sent", "mode": "safe" | "replace" }
+
+POST /api/cli/tabs/<tabId>/keys?workspaceId=WS
+  Body: { "keys": ["Down", "Enter"] }
+  Body alternative: { "sequence": ["Down", { "type": "literal", "value": "text" }, "Enter"] }
+  Send named tmux keys and literal text atomically. Supported named keys include arrows,
+  Enter, Escape, Space, Tab, Home/End, page keys, F1-F12, and C-/M- modifiers.
+
+POST /api/cli/tabs/<tabId>/answer?workspaceId=WS
+  Body: { "answers": [{ "option": 2 }] }
+  Multi-select: { "answers": [{ "options": [1, 3] }] }
+  Free text: { "answers": [{ "text": "custom answer" }] }
+  Answer each pending AskUserQuestion item using 1-based option indexes.
 
 GET /api/cli/tabs/<tabId>/status?workspaceId=WS
-  Response: { "tabId", "workspaceId", "alive", "command", "cliState", "agentProviderId", "agentSessionId", "claudeSessionId", "inputState" }
+  Response: { "tabId", "workspaceId", "sessionName", "alive", "command", "cliState", "agentProviderId", "agentSessionId", "claudeSessionId", "pendingQuestions", "inputState" }
 
 GET /api/cli/tabs/<tabId>/result?workspaceId=WS
   Capture the current pane content.
   Response: { "content": "...", "inputState": "empty" | "placeholder" | "typed" | "unavailable" | "unknown" | null }
+
+GET /api/cli/events[?workspaceId=WS][&tabId=TAB]
+  Server-Sent Events stream. Sends an initial status:sync event followed by
+  status:update and status:hook-event transitions. Heartbeats are SSE comments.
 
 ## LLM usage
 
@@ -78,7 +101,11 @@ POST /api/cli/team/send
 
 POST /api/cli/team/reply
   Body: { "workspaceId"?: "WS", "sessionName"?: "...", "content": "..." }
-  Send a structured report from a configured worker tab to the orchestrator.
+  Persist a structured report in a separate queue and return HTTP 202. Delivery retries
+  automatically until the orchestrator input is safe, regardless of its current overlay.
+
+GET /api/cli/team/inbox?workspaceId=WS[&sessionName=TMUX_SESSION]
+  Orchestrator-only view of replies that are still queued for delivery.
 
 ## Web-browser tabs
 
@@ -123,6 +150,29 @@ purplemux workspace create -n NAME [-g GROUP_PATH] [-d DIRECTORY]...
 
 purplemux workspace rename WS NEW_NAME
   Rename a workspace.
+
+purplemux workspace delete WS
+  Delete a workspace and all of its tabs.
+
+purplemux tab create -w WS --preset naive [--mcp-config FILE]...
+  Create an uncustomized Claude worker while retaining purplemux hooks.
+
+purplemux tab send -w WS TAB_ID --replace CONTENT...
+purplemux tab clear -w WS TAB_ID
+purplemux tab keys -w WS TAB_ID Down Enter
+  Recover or directly control interactive terminal input.
+
+purplemux tab answer -w WS TAB_ID --option 2
+purplemux tab answer -w WS TAB_ID --options 1,3
+purplemux tab answer -w WS TAB_ID --text "custom answer"
+  Answer the pending AskUserQuestion prompt.
+
+purplemux tab watch -w WS TAB_ID
+purplemux events [-w WS] [TAB_ID]
+  Stream state transitions as JSON Lines.
+
+purplemux team inbox [-w WS]
+  Inspect worker reports awaiting safe delivery.
 
 purplemux tab rename -w WS TAB_ID NEW_NAME
   Rename a tab.

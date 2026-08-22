@@ -22,5 +22,8 @@ describe('purplemux agent launch prompt', () => {
     );
     expect(prompt).toContain('`inputState`');
     expect(prompt).toContain('`placeholder`');
+    expect(prompt).toContain('purplemux workspace delete WS');
+    expect(prompt).toContain('purplemux tab answer -w ws-test123 TAB_ID --option N');
+    expect(prompt).toContain('persistent delivery queue');
   });
 });

@@ -8,6 +8,7 @@ import { getProviderByPanelType } from '@/lib/providers';
 import { checkAgentAvailabilityForPanelType, toAgentAvailabilityError } from '@/lib/agent-availability';
 import { createLogger } from '@/lib/logger';
 import type { TPanelType } from '@/types/terminal';
+import { buildNaiveClaudeCommand } from '@/lib/naive-agent-command';
 
 const log = createLogger('api:cli:tabs');
 
@@ -55,11 +56,13 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 
   if (req.method === 'POST') {
-    const { workspaceId, name, panelType, command } = req.body as {
+    const { workspaceId, name, panelType, command, preset, mcpConfigs } = req.body as {
       workspaceId?: string;
       name?: string;
       panelType?: string;
       command?: string;
+      preset?: string;
+      mcpConfigs?: string[];
     };
     if (!workspaceId) {
       return res.status(400).json({ error: 'workspaceId is required' });
@@ -72,14 +75,30 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     if (!paneId) {
       return res.status(500).json({ error: 'No pane available in workspace' });
     }
+    if (preset !== undefined && preset !== 'naive') {
+      return res.status(400).json({ error: 'Invalid preset', validPresets: ['naive'] });
+    }
+    if (preset && command) {
+      return res.status(400).json({ error: 'preset and command cannot be used together' });
+    }
+    if (mcpConfigs !== undefined && (!Array.isArray(mcpConfigs) || mcpConfigs.some((item) => typeof item !== 'string' || !item.trim()))) {
+      return res.status(400).json({ error: 'mcpConfigs must be an array of file paths' });
+    }
+    if (preset === 'naive' && panelType !== undefined && panelType !== 'claude-code') {
+      return res.status(400).json({ error: 'The naive preset currently supports claude-code tabs only' });
+    }
     if (panelType !== undefined && !VALID_PANEL_TYPES.includes(panelType as TPanelType)) {
       return res.status(400).json({
         error: 'Invalid panelType',
         validPanelTypes: VALID_PANEL_TYPES,
       });
     }
-    const resolvedType: TPanelType = panelType ? (panelType as TPanelType) : 'terminal';
-    const launchCommand = typeof command === 'string' && command.trim() ? command : undefined;
+    const resolvedType: TPanelType = preset === 'naive'
+      ? 'claude-code'
+      : panelType ? (panelType as TPanelType) : 'terminal';
+    const launchCommand = preset === 'naive'
+      ? await buildNaiveClaudeCommand(mcpConfigs?.map((item) => item.trim()))
+      : typeof command === 'string' && command.trim() ? command : undefined;
     const availability = await checkAgentAvailabilityForPanelType(resolvedType);
     if (!availability.ok) {
       return res.status(availability.status).json(toAgentAvailabilityError(availability));
@@ -97,6 +116,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         panelType: tab.panelType,
         agentProviderId: null,
         agentSessionId: null,
+        preset: preset ?? null,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'unknown error';

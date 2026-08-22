@@ -33,12 +33,19 @@ so no environment setup is needed.
 purplemux workspaces                                # list all workspaces
 purplemux workspace create -n NAME [-g GROUP_PATH] [-d DIR]...  # create workspace; prints workspace ID
 purplemux workspace rename WS NEW_NAME              # rename a workspace
+purplemux workspace delete WS                       # delete a workspace and its tabs
 purplemux tab list -w ${ws.id}                        # list tabs in this workspace
 purplemux tab create -w ${ws.id} [-n NAME] [-t TYPE] [-c CMD]  # create a tab (type: terminal | claude-code | codex-cli | agent-sessions | web-browser | diff)
+purplemux tab create -w ${ws.id} --preset naive [--mcp-config FILE]... # clean Claude worker with purplemux hooks
 purplemux tab rename -w ${ws.id} TAB_ID NEW_NAME      # rename a tab
 purplemux tab send -w ${ws.id} TAB_ID CONTENT...      # send input to a tab
+purplemux tab send -w ${ws.id} TAB_ID --replace CONTENT... # replace typed input and send
+purplemux tab clear -w ${ws.id} TAB_ID                 # clear unsubmitted input
+purplemux tab keys -w ${ws.id} TAB_ID KEY...           # send interactive keys
+purplemux tab answer -w ${ws.id} TAB_ID --option N     # answer AskUserQuestion (1-based)
 purplemux tab status -w ${ws.id} TAB_ID               # tab status
 purplemux tab result -w ${ws.id} TAB_ID               # capture current pane content
+purplemux tab watch -w ${ws.id} TAB_ID                # stream state transitions
 purplemux tab close -w ${ws.id} TAB_ID                # close a tab
 purplemux usage                                    # Claude/Codex usage and reset times
 \`\`\`
@@ -52,17 +59,20 @@ purplemux team send TARGET CONTENT...       # orchestrator: dispatch to an alias
 purplemux team status [TARGET]              # inspect member status
 purplemux team result TARGET                # capture a member's current pane
 purplemux team reply CONTENT...             # worker: report to the orchestrator
+purplemux team inbox                        # orchestrator: inspect queued reports
 \`\`\`
 
 Use team aliases instead of provider session IDs. Team tasks may arrive while
-you are busy and be queued as normal purplemux input. Workers should use
-\`purplemux team reply\` for completion reports, blockers, and questions.
+you are busy and be queued as normal purplemux input. Worker replies use a
+persistent delivery queue, so the orchestrator's current input overlay does not
+block reporting. Workers should use \`purplemux team reply\` for completion
+reports, blockers, and questions.
 
 Before sending input to another Claude Code tab, use \`tab status\` or \`tab result\`
 and read \`inputState\`. \`empty\` and \`placeholder\` are safe to send. \`typed\`
-means the user has unsubmitted input, and \`unknown\` is unsafe. \`unavailable\`
-means no input editor is visible; guarded send commands only allow it while the
-agent is \`busy\`, when the message can be queued. Do not infer input occupancy from
+means the user has unsubmitted input. \`unknown\` and \`unavailable\` are blocked
+while idle, but guarded sends accept them while the agent is \`busy\` so the
+message can be queued. Do not infer input occupancy from
 visible text: Claude Code renders its suggested prompt as text, but purplemux reports
 it as \`placeholder\`. Send commands enforce this check immediately before delivery.
 
