@@ -9,6 +9,7 @@ import { checkAgentAvailabilityForPanelType, toAgentAvailabilityError } from '@/
 import { createLogger } from '@/lib/logger';
 import type { TPanelType } from '@/types/terminal';
 import { buildNaiveClaudeCommand } from '@/lib/naive-agent-command';
+import { getStatusManager } from '@/lib/status-manager';
 
 const log = createLogger('api:cli:tabs');
 
@@ -107,6 +108,21 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     try {
       const tab = await addTabToPane(workspaceId, paneId, name, ws.directories[0], resolvedType, launchCommand);
       if (!tab) return res.status(500).json({ error: 'Failed to create tab' });
+      if (tab.panelType !== 'web-browser') {
+        const tabProvider = getProviderByPanelType(tab.panelType);
+        getStatusManager().registerTab(tab.id, {
+          cliState: 'inactive',
+          workspaceId,
+          tabName: tab.name,
+          tmuxSession: tab.sessionName,
+          panelType: tab.panelType,
+          agentProviderId: tabProvider?.id,
+          agentSessionId: tabProvider?.readSessionId(tab) ?? null,
+          lastEvent: null,
+          eventSeq: 0,
+        });
+        if (launchCommand) getStatusManager().markAgentLaunch(tab.id);
+      }
       return res.status(201).json({
         tabId: tab.id,
         workspaceId,

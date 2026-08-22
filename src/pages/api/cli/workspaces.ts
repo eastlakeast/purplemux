@@ -5,6 +5,9 @@ import { verifyCliToken } from '@/lib/cli-token';
 import { getBrowserBridge } from '@/lib/browser-bridge-client';
 import { hasLiveElectronSyncClient } from '@/lib/sync-server';
 import { getWorkspaceGroupPath } from '@/lib/workspace-group-path';
+import { collectAllTabs, readLayoutFile, resolveLayoutFile } from '@/lib/layout-store';
+import { getProviderByPanelType } from '@/lib/providers';
+import { getStatusManager } from '@/lib/status-manager';
 
 const toCliWorkspace = (
   workspace: Awaited<ReturnType<typeof getWorkspaces>>['workspaces'][number],
@@ -56,6 +59,22 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         groupPath: typeof groupPath === 'string' ? groupPath : undefined,
         directories: Array.isArray(directories) ? directories : [os.homedir()],
       });
+      const layout = await readLayoutFile(resolveLayoutFile(workspace.id));
+      const defaultTab = layout ? collectAllTabs(layout.root)[0] : null;
+      if (defaultTab && defaultTab.panelType !== 'web-browser') {
+        const provider = getProviderByPanelType(defaultTab.panelType);
+        getStatusManager().registerTab(defaultTab.id, {
+          cliState: 'inactive',
+          workspaceId: workspace.id,
+          tabName: defaultTab.name,
+          tmuxSession: defaultTab.sessionName,
+          panelType: defaultTab.panelType,
+          agentProviderId: provider?.id,
+          agentSessionId: provider?.readSessionId(defaultTab) ?? null,
+          lastEvent: null,
+          eventSeq: 0,
+        });
+      }
       const { groups } = await getWorkspaces();
       return res.status(201).json(toCliWorkspace(workspace, groups));
     } catch (err) {
