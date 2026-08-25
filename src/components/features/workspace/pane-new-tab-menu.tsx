@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { History, Plus, Globe } from 'lucide-react';
+import { FileText, History, Plus, Globe } from 'lucide-react';
 import Spinner from '@/components/ui/spinner';
 import ClaudeCodeIcon from '@/components/icons/claude-code-icon';
 import OpenAIIcon from '@/components/icons/openai-icon';
@@ -47,6 +47,7 @@ const defaultKeyForPanelType = (panelType?: TPanelType): string => {
     case 'web-browser': return 'web-browser';
     case 'codex-cli': return 'codex';
     case 'agent-sessions': return 'agent-sessions';
+    case 'document-editor': return 'document';
     case 'diff':
     case 'claude-code':
     default: return 'claude';
@@ -55,6 +56,7 @@ const defaultKeyForPanelType = (panelType?: TPanelType): string => {
 
 const PaneNewTabMenu = ({ paneId, isCreating, activePanelType, onCreateTab }: IPaneNewTabMenuProps) => {
   const t = useTranslations('terminal');
+  const td = useTranslations('document');
   const isMac = useIsMac();
   const mod = isMac ? '⌘' : 'Ctrl+';
   const [open, setOpen] = useState(false);
@@ -65,14 +67,15 @@ const PaneNewTabMenu = ({ paneId, isCreating, activePanelType, onCreateTab }: IP
 
   const menuItems = useMemo(() => {
     const all = [
-      { key: 'claude', type: 'claude-code' as const, icon: <ClaudeCodeIcon className="h-3.5 w-3.5" />, label: t('claudeNewConversation'), startAgent: 'claude' as const },
-      { key: 'codex', type: 'codex-cli' as const, icon: <OpenAIIcon className="h-3.5 w-3.5" />, label: t('codexNewConversation'), startAgent: 'codex' as const },
-      { key: 'agent-sessions', type: 'agent-sessions' as const, icon: <History className="h-3.5 w-3.5 text-muted-foreground" />, label: t('sessionList') },
-      { key: 'terminal', type: 'terminal' as const, icon: <ProcessIcon className="h-3.5 w-3.5 text-muted-foreground" />, label: 'Terminal' },
-      { key: 'web-browser', type: 'web-browser' as const, icon: <Globe className="h-3.5 w-3.5 text-muted-foreground" />, label: 'Web Browser' },
+      { key: 'claude', shortcut: 'c', type: 'claude-code' as const, icon: <ClaudeCodeIcon className="h-3.5 w-3.5" />, label: t('claudeNewConversation'), startAgent: 'claude' as const },
+      { key: 'codex', shortcut: 'x', type: 'codex-cli' as const, icon: <OpenAIIcon className="h-3.5 w-3.5" />, label: t('codexNewConversation'), startAgent: 'codex' as const },
+      { key: 'agent-sessions', shortcut: 's', type: 'agent-sessions' as const, icon: <History className="h-3.5 w-3.5 text-muted-foreground" />, label: t('sessionList') },
+      { key: 'terminal', shortcut: 't', type: 'terminal' as const, icon: <ProcessIcon className="h-3.5 w-3.5 text-muted-foreground" />, label: 'Terminal' },
+      { key: 'web-browser', shortcut: 'w', type: 'web-browser' as const, icon: <Globe className="h-3.5 w-3.5 text-muted-foreground" />, label: 'Web Browser' },
+      { key: 'document', shortcut: 'd', type: 'document-editor' as const, icon: <FileText className="h-3.5 w-3.5 text-muted-foreground" />, label: td('document') },
     ];
     return isMobile ? all.filter((item) => item.key !== 'web-browser') : all;
-  }, [isMobile, t]);
+  }, [isMobile, t, td]);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -142,6 +145,16 @@ const PaneNewTabMenu = ({ paneId, isCreating, activePanelType, onCreateTab }: IP
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+      const shortcutIndex = menuItems.findIndex((item) => item.shortcut === e.key.toLowerCase());
+      if (shortcutIndex >= 0) {
+        e.preventDefault();
+        const item = menuItems[shortcutIndex];
+        setActiveIndex(shortcutIndex);
+        handleSelect(item);
+        return;
+      }
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setActiveIndex((i) => (i + 1) % menuItems.length);
@@ -196,6 +209,9 @@ const PaneNewTabMenu = ({ paneId, isCreating, activePanelType, onCreateTab }: IP
                 <span className="min-w-0 flex-1 truncate text-left">
                   {item.label}
                 </span>
+                <kbd className="ml-4 min-w-4 text-center font-mono text-[10px] uppercase text-muted-foreground">
+                  {item.shortcut}
+                </kbd>
               </button>
             </div>
           ))}

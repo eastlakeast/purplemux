@@ -30,7 +30,7 @@ purplemux workspace create -n NAME [-g GROUP_PATH] [-d DIR]... [--worker TYPE] [
 purplemux workspace rename WS NEW_NAME              # rename a workspace
 purplemux workspace delete WS                       # delete a workspace and its tabs
 purplemux tab list -w ${ws.id}                        # list tabs in this workspace
-purplemux tab create -w ${ws.id} [-n NAME] [-t TYPE] [-c CMD]  # create a tab (type: terminal | claude-code | codex-cli | agent-sessions | web-browser | diff)
+purplemux tab create -w ${ws.id} [-n NAME] [-t TYPE] [-c CMD]  # create a tab (type: terminal | claude-code | codex-cli | agent-sessions | web-browser | document-editor | diff)
 purplemux tab create -w ${ws.id} --preset naive [--mcp-config FILE]... # clean Claude worker with purplemux hooks
 purplemux tab rename -w ${ws.id} TAB_ID NEW_NAME      # rename a tab
 purplemux tab send -w ${ws.id} TAB_ID CONTENT...      # send input to a tab
@@ -105,6 +105,8 @@ purplemux tab create -w ${ws.id} -t claude-code -c "claude --settings ~/.purplem
   value, not a sign the tab is dead. Do not gate actions on \`alive\`. Use the
   browser-specific HTTP endpoints (\`/browser/url\`, \`/browser/screenshot\`, …;
   see \`purplemux api-guide\`) directly.
+- **\`document-editor\` tabs**: autosaved Markdown editors, not tmux. Their content
+  survives app restarts and is discarded when the tab or workspace is deleted.
 - **\`terminal\` / \`claude-code\` / \`codex-cli\` tabs**: run inside tmux, so \`alive\` is a valid
   liveness signal.
 `;

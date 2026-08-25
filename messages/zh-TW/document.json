@@ -1,0 +1,17 @@
+{
+  "document": "文件",
+  "untitled": "未命名.md",
+  "markdown": "Markdown",
+  "preview": "預覽",
+  "openPreview": "開啟 Markdown 預覽",
+  "previewTitle": "文件預覽",
+  "placeholder": "輸入備忘或下一則提示詞…",
+  "editorLabel": "文件編輯器",
+  "inputLabel": "Markdown 文件",
+  "saved": "已儲存",
+  "saving": "儲存中…",
+  "error": "自動儲存失敗",
+  "lineColumn": "行 {line}，欄 {column}",
+  "emptyPreview": "開始輸入後將顯示 Markdown 預覽",
+  "loadFailed": "此文件已無法使用"
+}

@@ -1,0 +1,17 @@
+{
+  "document": "문서",
+  "untitled": "제목 없음.md",
+  "markdown": "Markdown",
+  "preview": "미리보기",
+  "openPreview": "Markdown 미리보기 열기",
+  "previewTitle": "문서 미리보기",
+  "placeholder": "메모나 다음에 보낼 프롬프트를 작성하세요…",
+  "editorLabel": "문서 편집기",
+  "inputLabel": "Markdown 문서",
+  "saved": "저장됨",
+  "saving": "저장 중…",
+  "error": "자동 저장 실패",
+  "lineColumn": "줄 {line}, 열 {column}",
+  "emptyPreview": "문서를 작성하면 Markdown 미리보기가 표시됩니다",
+  "loadFailed": "이 문서는 더 이상 존재하지 않습니다"
+}

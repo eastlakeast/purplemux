@@ -10,10 +10,11 @@ import { createLogger } from '@/lib/logger';
 import type { TPanelType } from '@/types/terminal';
 import { buildNaiveClaudeCommand } from '@/lib/naive-agent-command';
 import { getStatusManager } from '@/lib/status-manager';
+import { panelUsesTmux } from '@/lib/panel-type';
 
 const log = createLogger('api:cli:tabs');
 
-const VALID_PANEL_TYPES: TPanelType[] = ['terminal', 'claude-code', 'codex-cli', 'agent-sessions', 'web-browser', 'diff'];
+const VALID_PANEL_TYPES: TPanelType[] = ['terminal', 'claude-code', 'codex-cli', 'agent-sessions', 'web-browser', 'document-editor', 'diff'];
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (!verifyCliToken(req)) {
@@ -108,7 +109,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     try {
       const tab = await addTabToPane(workspaceId, paneId, name, ws.directories[0], resolvedType, launchCommand);
       if (!tab) return res.status(500).json({ error: 'Failed to create tab' });
-      if (tab.panelType !== 'web-browser') {
+      if (panelUsesTmux(tab.panelType)) {
         const tabProvider = getProviderByPanelType(tab.panelType);
         getStatusManager().registerTab(tab.id, {
           cliState: 'inactive',

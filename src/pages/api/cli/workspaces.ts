@@ -13,6 +13,7 @@ import { buildNaiveClaudeCommand } from '@/lib/naive-agent-command';
 import { sendKeys } from '@/lib/tmux';
 import { createLogger } from '@/lib/logger';
 import type { TPanelType } from '@/types/terminal';
+import { panelUsesTmux } from '@/lib/panel-type';
 
 const log = createLogger('api:cli:workspaces');
 
@@ -148,7 +149,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       if (!defaultTab) {
         throw new Error('Created workspace has no initial tab');
       }
-      if (defaultTab.panelType !== 'web-browser') {
+      if (panelUsesTmux(defaultTab.panelType)) {
         const provider = getProviderByPanelType(defaultTab.panelType);
         getStatusManager().registerTab(defaultTab.id, {
           cliState: 'inactive',

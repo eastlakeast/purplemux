@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { GitCompareArrows, Globe } from 'lucide-react';
+import { FileText, GitCompareArrows, Globe } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import useTabStore, { selectTabDisplayStatus } from '@/hooks/use-tab-store';
 import ProcessIcon from '@/components/icons/process-icon';
@@ -29,6 +29,8 @@ const DotByStatus = ({ status, panelType, terminalStatus, process }: { status: T
     }
   } else if (panelType === 'web-browser') {
     inner = <Globe className="h-2.5 w-2.5 text-muted-foreground/50" aria-hidden="true" />;
+  } else if (panelType === 'document-editor') {
+    inner = <FileText className="h-2.5 w-2.5 text-muted-foreground/50" aria-hidden="true" />;
   } else if (panelType === 'diff') {
     inner = <GitCompareArrows className="h-2.5 w-2.5 text-muted-foreground/50" aria-hidden="true" />;
   } else {

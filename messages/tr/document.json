@@ -1,0 +1,17 @@
+{
+  "document": "Belge",
+  "untitled": "Başlıksız.md",
+  "markdown": "Markdown",
+  "preview": "Önizleme",
+  "openPreview": "Markdown önizlemesini aç",
+  "previewTitle": "Belge önizlemesi",
+  "placeholder": "Bir not veya sonraki isteminizi yazın…",
+  "editorLabel": "Belge düzenleyici",
+  "inputLabel": "Markdown belgesi",
+  "saved": "Kaydedildi",
+  "saving": "Kaydediliyor…",
+  "error": "Otomatik kaydetme başarısız",
+  "lineColumn": "Sat {line}, Süt {column}",
+  "emptyPreview": "Markdown önizlemesini görmek için yazmaya başlayın",
+  "loadFailed": "Bu belge artık kullanılamıyor"
+}

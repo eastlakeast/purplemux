@@ -1,0 +1,17 @@
+{
+  "document": "ドキュメント",
+  "untitled": "無題.md",
+  "markdown": "Markdown",
+  "preview": "プレビュー",
+  "openPreview": "Markdownプレビューを開く",
+  "previewTitle": "ドキュメントプレビュー",
+  "placeholder": "メモや次のプロンプトを入力してください…",
+  "editorLabel": "ドキュメントエディター",
+  "inputLabel": "Markdownドキュメント",
+  "saved": "保存済み",
+  "saving": "保存中…",
+  "error": "自動保存に失敗しました",
+  "lineColumn": "行 {line}、列 {column}",
+  "emptyPreview": "入力するとMarkdownプレビューが表示されます",
+  "loadFailed": "このドキュメントは利用できません"
+}

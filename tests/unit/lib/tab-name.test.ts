@@ -8,6 +8,7 @@ describe('tab names', () => {
   it('does not persist the session list label as a tab name', () => {
     expect(defaultTabNameForPanelType('agent-sessions')).toBe('');
     expect(defaultTabNameForPanelType('web-browser')).toBe('Web Browser');
+    expect(defaultTabNameForPanelType('document-editor')).toBe('Document');
     expect(defaultTabNameForPanelType('codex-cli')).toBe('');
   });
 

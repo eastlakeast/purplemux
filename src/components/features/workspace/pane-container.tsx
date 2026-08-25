@@ -29,6 +29,7 @@ import WebInputBar from '@/components/features/workspace/web-input-bar';
 import QuickPromptBar from '@/components/features/workspace/quick-prompt-bar';
 import ConnectionStatus from '@/components/features/workspace/connection-status';
 import WebBrowserPanel from '@/components/features/workspace/web-browser-panel';
+import DocumentEditorPanel from '@/components/features/workspace/document-editor-panel';
 import DiffPanel from '@/components/features/workspace/diff-panel';
 import PaneDisconnectedOverlay from '@/components/features/workspace/pane-disconnected-overlay';
 import PaneAgentModePrompt from '@/components/features/workspace/pane-agent-mode-prompt';
@@ -61,6 +62,7 @@ import {
   type IAgentCheckResponse,
   type TAgentPanelType,
 } from '@/lib/agent-check';
+import { panelUsesTmux } from '@/lib/panel-type';
 
 
 interface ITermActions {
@@ -146,7 +148,9 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
   const isAgentSessionList = activePanelType === 'agent-sessions';
   const isAgentPanel = isClaudeCode || isCodex;
   const isWebBrowser = activePanelType === 'web-browser';
+  const isDocumentEditor = activePanelType === 'document-editor';
   const isDiff = activePanelType === 'diff';
+  const isStandalonePanel = isWebBrowser || isDocumentEditor || isDiff || isAgentSessionList;
   const [tabSplitSide, setTabSplitSide] = useState<TTabSplitSide | null>(null);
   const { ensureAgentInstalled, installDialogs } = useAgentInstallCheck();
 
@@ -508,7 +512,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
       if (!tabId) return;
       const activeTab = tabsRef.current.find((t) => t.id === tabId);
       if (!activeTab) return;
-      if (activeTab?.panelType === 'web-browser' || activeTab?.panelType === 'agent-sessions') return;
+      if (!panelUsesTmux(activeTab?.panelType) || activeTab?.panelType === 'agent-sessions') return;
       if (title === lastTitleRef.current) return;
       lastTitleRef.current = title;
 
@@ -647,7 +651,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
     if (!isReady || !activeTabId) return;
     const tab = tabs.find((t) => t.id === activeTabId);
     if (!tab) return;
-    if (tab.panelType === 'web-browser') {
+    if (!panelUsesTmux(tab.panelType)) {
       lastTitleRef.current = '';
       return;
     }
@@ -752,7 +756,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
       const currentTitle = currentTabId
         ? useTabMetadataStore.getState().metadata[currentTabId]?.title
         : null;
-      if (currentTitle && panelType !== 'web-browser' && panelType !== 'agent-sessions') {
+      if (currentTitle && panelUsesTmux(panelType) && panelType !== 'agent-sessions') {
         useTabMetadataStore.getState().setTitle(newTab.id, currentTitle);
       }
     }
@@ -1180,7 +1184,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
   }, [agentInputVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const noTabs = tabs.length === 0;
-  const ready = isReady && (status === 'connected' || hasEverConnected) && !noTabs && !sessionSwitching;
+  const ready = isStandalonePanel || (isReady && (status === 'connected' || hasEverConnected) && !noTabs && !sessionSwitching);
   const showInitialLoading =
     !noTabs &&
     (!isReady || !hasEverConnected);
@@ -1242,9 +1246,9 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
       <div
         role="tabpanel"
         className="relative min-h-0 flex-1 flex flex-col"
-        style={isWebBrowser || isDiff || isAgentSessionList ? undefined : { backgroundColor: terminalTheme.colors.background }}
-        onDragOver={isWebBrowser || isDiff || isAgentSessionList ? undefined : handleTerminalDragOver}
-        onDrop={isWebBrowser || isDiff || isAgentSessionList ? undefined : handleTerminalDrop}
+        style={isStandalonePanel ? undefined : { backgroundColor: terminalTheme.colors.background }}
+        onDragOver={isStandalonePanel ? undefined : handleTerminalDragOver}
+        onDrop={isStandalonePanel ? undefined : handleTerminalDrop}
       >
         {isWebBrowser && activeTabId && (
           <WebBrowserPanel
@@ -1252,6 +1256,15 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
             tabId={activeTabId}
             initialUrl={activeTab?.webUrl}
             onUrlChange={handleWebUrlChange}
+          />
+        )}
+
+        {isDocumentEditor && activeTab && activeTabId && layoutWsId && (
+          <DocumentEditorPanel
+            key={activeTabId}
+            workspaceId={layoutWsId}
+            paneId={paneId}
+            tab={activeTab}
           />
         )}
 
@@ -1308,7 +1321,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
               updateTabTerminalLayout(paneId, activeTabId, patch);
             }
           }}
-          className={cn('min-h-0 flex-1', (isWebBrowser || isDiff || isAgentSessionList) && 'invisible absolute inset-0 pointer-events-none', isPanelTransitioning && '[&>[data-panel]]:[transition:flex-grow_150ms_ease-out]')}
+          className={cn('min-h-0 flex-1', isStandalonePanel && 'invisible absolute inset-0 pointer-events-none', isPanelTransitioning && '[&>[data-panel]]:[transition:flex-grow_150ms_ease-out]')}
         >
           <Panel
             id="timeline"
@@ -1482,7 +1495,7 @@ const PaneContainer = memo(({ paneId, paneNumber }: IPaneContainerProps) => {
           />
         )}
 
-        {!noTabs && !isWebBrowser && !isDiff && (
+        {!noTabs && panelUsesTmux(activePanelType) && !isDiff && (
           <ConnectionStatus
             status={status}
             retryCount={retryCount}

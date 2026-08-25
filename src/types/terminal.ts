@@ -12,7 +12,8 @@ export type TDisconnectReason = 'max-connections' | 'pty-error' | 'session-not-f
 /** Omit submitDelayMs to send text only; pass it to have the server append Enter atomically. */
 export type TWebStdinSender = (data: string, submitDelayMs?: number) => void;
 
-export type TPanelType = 'terminal' | 'claude-code' | 'codex-cli' | 'agent-sessions' | 'web-browser' | 'diff';
+export type TPanelType = 'terminal' | 'claude-code' | 'codex-cli' | 'agent-sessions' | 'web-browser' | 'document-editor' | 'diff';
+export type TDocumentFormat = 'markdown';
 export type TDiffViewMode = 'split' | 'unified';
 export type TDiffTab = 'changes' | 'history';
 
@@ -28,6 +29,12 @@ export interface IAgentState {
   sessionId: string | null;
   jsonlPath: string | null;
   summary: string | null;
+}
+
+export interface IDocumentState {
+  format: TDocumentFormat;
+  content: string;
+  updatedAt: number;
 }
 
 export interface ITab {
@@ -50,6 +57,7 @@ export interface ITab {
   cliState?: TCliState;
   dismissedAt?: number | null;
   webUrl?: string | null;
+  document?: IDocumentState;
   terminalRatio?: number;
   terminalCollapsed?: boolean;
 }

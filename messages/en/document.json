@@ -1,0 +1,17 @@
+{
+  "document": "Document",
+  "untitled": "Untitled.md",
+  "markdown": "Markdown",
+  "preview": "Preview",
+  "openPreview": "Open Markdown preview",
+  "previewTitle": "Document preview",
+  "placeholder": "Write a note or your next prompt…",
+  "editorLabel": "Document editor",
+  "inputLabel": "Markdown document",
+  "saved": "Saved",
+  "saving": "Saving…",
+  "error": "Autosave failed",
+  "lineColumn": "Ln {line}, Col {column}",
+  "emptyPreview": "Start writing to see the Markdown preview",
+  "loadFailed": "This document is no longer available"
+}

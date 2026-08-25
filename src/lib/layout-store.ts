@@ -15,13 +15,14 @@ import {
   equalizeNode,
   isEqualized,
 } from '@/lib/layout-tree';
-import type { ITab, TLayoutNode, IPaneNode, ILayoutData, TPanelType, IDiffSettings } from '@/types/terminal';
+import type { ITab, TLayoutNode, IPaneNode, ILayoutData, TPanelType, IDiffSettings, IDocumentState } from '@/types/terminal';
 import type { TCliState } from '@/types/timeline';
 import type { IAgentProvider } from '@/lib/providers/types';
 import { claudeProvider } from '@/lib/providers/claude';
 import { defaultTabNameForPanelType, resolveTabNameForPanelTypeChange } from '@/lib/tab-name';
 import { moveTabAcrossLayouts, splitTabIntoPane } from '@/lib/layout-tab-transfer';
 import type { TTabSplitSide } from '@/lib/tab-drag-data';
+import { panelUsesTmux } from '@/lib/panel-type';
 
 const log = createLogger('layout');
 
@@ -190,7 +191,7 @@ export const crossCheckLayout = async (
 
   for (const pane of panes) {
     for (const tab of pane.tabs) {
-      if (tab.panelType === 'web-browser') continue;
+      if (!panelUsesTmux(tab.panelType)) continue;
       layoutSessions.add(tab.sessionName);
 
       if (!tmuxSet.has(tab.sessionName) && isAgentPanelType(tab.panelType)) {
@@ -302,10 +303,10 @@ export const addTabToPane = async (wsId: string, paneId: string, name?: string, 
     const pane = collectPanes(layout.root).find((p) => p.id === paneId);
     if (!pane) return null;
 
-    const isWebBrowser = panelType === 'web-browser';
+    const usesTmux = panelUsesTmux(panelType as TPanelType | undefined);
     const tabId = generateTabId();
     const sessionName = workspaceSessionName(wsId, paneId, tabId);
-    if (!isWebBrowser) {
+    if (usesTmux) {
       await createSession(sessionName, 80, 24, cwd);
       if (command) {
         await sendKeys(sessionName, command);
@@ -315,7 +316,18 @@ export const addTabToPane = async (wsId: string, paneId: string, name?: string, 
     const nextOrder = pane.tabs.length > 0 ? Math.max(...pane.tabs.map((t) => t.order)) + 1 : 0;
     const defaultName = defaultTabNameForPanelType(panelType as ITab['panelType']);
     const tabName = name?.trim() || defaultName;
-    const tab: ITab = { id: tabId, sessionName, name: tabName, order: nextOrder, ...(cwd ? { cwd } : {}), ...(panelType ? { panelType: panelType as ITab['panelType'] } : {}), ...(webUrl ? { webUrl } : {}) };
+    const tab: ITab = {
+      id: tabId,
+      sessionName,
+      name: tabName,
+      order: nextOrder,
+      ...(cwd ? { cwd } : {}),
+      ...(panelType ? { panelType: panelType as ITab['panelType'] } : {}),
+      ...(webUrl ? { webUrl } : {}),
+      ...(panelType === 'document-editor'
+        ? { document: { format: 'markdown' as const, content: '', updatedAt: Date.now() } }
+        : {}),
+    };
 
     pane.tabs.push(tab);
     pane.activeTabId = tabId;
@@ -342,7 +354,7 @@ export const removeTabFromPane = async (wsId: string, paneId: string, tabId: str
 
   if (!tabInfo) return false;
 
-  if (tabInfo.panelType !== 'web-browser') {
+  if (panelUsesTmux(tabInfo.panelType)) {
     await killSession(tabInfo.sessionName);
   }
 
@@ -643,12 +655,12 @@ export const splitPaneInLayout = async (
   name?: string,
   webUrl?: string,
 ): Promise<ILayoutData | null> => {
-  const isWebBrowser = panelType === 'web-browser';
+  const usesTmux = panelUsesTmux(panelType as TPanelType | undefined);
   const paneId = generatePaneId();
   const tabId = generateTabId();
   const sessionName = workspaceSessionName(wsId, paneId, tabId);
 
-  if (!isWebBrowser) {
+  if (usesTmux) {
     await createSession(sessionName, 80, 24, cwd);
   }
 
@@ -660,6 +672,9 @@ export const splitPaneInLayout = async (
     order: 0,
     ...(cwd ? { cwd } : {}),
     ...(webUrl ? { webUrl } : {}),
+    ...(panelType === 'document-editor'
+      ? { document: { format: 'markdown' as const, content: '', updatedAt: Date.now() } }
+      : {}),
   };
   if (panelType) tab.panelType = panelType as ITab['panelType'];
 
@@ -687,7 +702,7 @@ export const splitPaneInLayout = async (
     return layout;
   });
 
-  if (!result && !isWebBrowser) {
+  if (!result && usesTmux) {
     await killSession(sessionName).catch(() => {});
   }
 
@@ -717,7 +732,7 @@ export const closePaneInLayout = async (wsId: string, paneId: string): Promise<I
     if (!pane) return null;
     if (collectPanes(layout.root).length <= 1) return null;
 
-    sessions = pane.tabs.filter((t) => t.panelType !== 'web-browser').map((t) => t.sessionName);
+    sessions = pane.tabs.filter((t) => panelUsesTmux(t.panelType)).map((t) => t.sessionName);
     const wasEqualized = isEqualized(layout.root);
     removePaneWithFocus(layout, paneId);
     if (wasEqualized) {
@@ -836,7 +851,7 @@ export const moveTabBetweenWorkspaces = async (
     let tmuxRenamed = false;
     let statusMoved = false;
     try {
-      if (moved.tab.panelType !== 'web-browser') {
+      if (panelUsesTmux(moved.tab.panelType)) {
         tmuxRenamed = await renameSession(oldSessionName, moved.tab.sessionName);
       }
       targetLayout.updatedAt = new Date().toISOString();
@@ -929,3 +944,33 @@ export const patchTab = async (
     return layout;
   });
 };
+
+export const updateTabDocument = async (
+  wsId: string,
+  tabId: string,
+  nextDocument: IDocumentState,
+): Promise<IDocumentState | null> =>
+  withLock(async () => {
+    const filePath = resolveLayoutFile(wsId);
+    const layout = await readLayoutFile(filePath);
+    if (!layout) return null;
+
+    const tab = collectAllTabs(layout.root).find((candidate) => candidate.id === tabId);
+    if (!tab || tab.panelType !== 'document-editor') return null;
+
+    const current = tab.document;
+    if (current && current.updatedAt > nextDocument.updatedAt) return current;
+    if (
+      current &&
+      current.updatedAt === nextDocument.updatedAt &&
+      current.content === nextDocument.content &&
+      current.format === nextDocument.format
+    ) {
+      return current;
+    }
+
+    tab.document = nextDocument;
+    layout.updatedAt = new Date().toISOString();
+    await writeLayoutFile(layout, filePath);
+    return nextDocument;
+  });

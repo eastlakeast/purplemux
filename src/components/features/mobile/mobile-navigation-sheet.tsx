@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback, useRef, type ReactNode } from 'react';
 import {
   ChevronDown,
   ChevronRight,
+  FileText,
   FolderPlus,
   GitCompareArrows,
   Globe,
@@ -246,6 +247,8 @@ const MobileNavigationSheet = ({
               <OpenAIIcon size={16} className="text-foreground" />
             ) : panelType === 'web-browser' ? (
               <Globe size={14} className="text-muted-foreground" />
+            ) : panelType === 'document-editor' ? (
+              <FileText size={14} className="text-muted-foreground" />
             ) : panelType === 'diff' ? (
               <GitCompareArrows size={14} className="text-muted-foreground" />
             ) : (

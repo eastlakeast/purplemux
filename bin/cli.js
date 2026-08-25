@@ -618,7 +618,7 @@ Commands:
   workspace delete WS                     Delete a workspace and all of its tabs
   tab list [-w WS]                         List tabs (optionally scoped to workspace)
   tab create -w WS [-n NAME] [-t TYPE] [-c CMD]
-                                          Create a tab in workspace (type: terminal | claude-code | codex-cli | agent-sessions | web-browser | diff)
+                                          Create a tab in workspace (type: terminal | claude-code | codex-cli | agent-sessions | web-browser | document-editor | diff)
                [--preset naive] [--mcp-config FILE]...
                                           Create an uncustomized Claude worker while retaining purplemux hooks
   tab send -w WS TAB_ID [--replace] CONTENT...

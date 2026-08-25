@@ -1,5 +1,5 @@
 import { useRef, useEffect, useMemo } from 'react';
-import { Globe, GitCompareArrows, History } from 'lucide-react';
+import { FileText, Globe, GitCompareArrows, History } from 'lucide-react';
 import useTabStore, { selectTabDisplayStatus } from '@/hooks/use-tab-store';
 import { cn } from '@/lib/utils';
 import ProcessIcon from '@/components/icons/process-icon';
@@ -118,6 +118,8 @@ const MobileWorkspaceTabBar = ({
                   <span className="h-2 w-2 rounded-full border border-muted-foreground/40" />
                 ) : item.panelType === 'web-browser' ? (
                   <Globe className="h-2.5 w-2.5 text-muted-foreground/50" />
+                ) : item.panelType === 'document-editor' ? (
+                  <FileText className="h-2.5 w-2.5 text-muted-foreground/50" />
                 ) : item.panelType === 'diff' ? (
                   <GitCompareArrows className="h-2.5 w-2.5 text-muted-foreground/50" />
                 ) : item.panelType === 'agent-sessions' ? (

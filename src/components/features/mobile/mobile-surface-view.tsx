@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import type { IDiffSettings, ITab, TPanelType } from '@/types/terminal';
 import WebBrowserPanel from '@/components/features/workspace/web-browser-panel';
+import DocumentEditorPanel from '@/components/features/workspace/document-editor-panel';
 import DiffPanel from '@/components/features/workspace/diff-panel';
 import useTerminal from '@/hooks/use-terminal';
 import useTerminalWebSocket from '@/hooks/use-terminal-websocket';
@@ -40,6 +41,7 @@ import {
   type TAgentPanelType,
 } from '@/lib/agent-check';
 import { reloadForReconnectRecovery } from '@/lib/ws-reload-recovery';
+import { panelUsesTmux } from '@/lib/panel-type';
 
 
 interface ITermActions {
@@ -117,6 +119,7 @@ const MobileSurfaceView = ({
   const isAgentPanel = isClaudeCode || isCodex;
   const usesHiddenTerminal = isAgentPanel || isAgentSessionList;
   const isWebBrowser = panelType === 'web-browser';
+  const isDocumentEditor = panelType === 'document-editor';
   const isDiff = panelType === 'diff';
   const { ensureAgentInstalled, installDialogs } = useAgentInstallCheck();
 
@@ -263,7 +266,7 @@ const MobileSurfaceView = ({
       if (!tabId) return;
       const activeTab = tabsRef.current.find((t) => t.id === tabId);
       if (!activeTab) return;
-      if (activeTab.panelType === 'web-browser' || activeTab.panelType === 'agent-sessions') return;
+      if (!panelUsesTmux(activeTab.panelType) || activeTab.panelType === 'agent-sessions') return;
       if (title === lastTitleRef.current) return;
       lastTitleRef.current = title;
       const formatted = formatTabTitle(title, activeTab?.panelType);
@@ -374,7 +377,7 @@ const MobileSurfaceView = ({
     if (!isReady || !activeTabId) return;
     const tab = tabs.find((t) => t.id === activeTabId);
     if (!tab) return;
-    if (tab.panelType === 'web-browser') {
+    if (!panelUsesTmux(tab.panelType)) {
       connectedSessionRef.current = null;
       lastTitleRef.current = '';
       return;
@@ -717,7 +720,7 @@ const MobileSurfaceView = ({
   }, [activeTabId, paneId, layoutWsId]);
 
   const noTabs = tabs.length === 0;
-  const ready = isWebBrowser || isDiff || isAgentSessionList || (isReady && status === 'connected' && !noTabs);
+  const ready = isWebBrowser || isDocumentEditor || isDiff || isAgentSessionList || (isReady && status === 'connected' && !noTabs);
   const isFirstConnectionForTab =
     activeTabId !== null && attemptedTabId !== activeTabId;
 
@@ -752,6 +755,15 @@ const MobileSurfaceView = ({
           tabId={activeTabId}
           initialUrl={activeTab?.webUrl}
           onUrlChange={handleWebUrlChange}
+        />
+      )}
+
+      {isDocumentEditor && activeTab && activeTabId && layoutWsId && (
+        <DocumentEditorPanel
+          key={activeTabId}
+          workspaceId={layoutWsId}
+          paneId={paneId}
+          tab={activeTab}
         />
       )}
 
@@ -817,7 +829,7 @@ const MobileSurfaceView = ({
         />
       )}
 
-      {!isWebBrowser && !isDiff && (
+      {panelUsesTmux(panelType) && !isDiff && (
         <TerminalContainer
           ref={terminalRef}
           className={cn(
@@ -829,7 +841,7 @@ const MobileSurfaceView = ({
         />
       )}
 
-      {!isAgentPanel && !isWebBrowser && !isDiff && !isAgentSessionList && status === 'connected' && (
+      {!isAgentPanel && panelUsesTmux(panelType) && !isDiff && !isAgentSessionList && status === 'connected' && (
         <MobileTerminalToolbar sendStdin={sendWebStdin} terminalConnected={status === 'connected'} />
       )}
 
@@ -856,7 +868,7 @@ const MobileSurfaceView = ({
       )}
 
 
-      {!noTabs && !isWebBrowser && status === 'disconnected' && !isFirstConnectionForTab && (
+      {!noTabs && panelUsesTmux(panelType) && status === 'disconnected' && !isFirstConnectionForTab && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3">
           <WifiOff className="h-5 w-5 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">
@@ -900,7 +912,7 @@ const MobileSurfaceView = ({
         </div>
       )}
 
-      {!noTabs && !isWebBrowser && !isDiff && !(isAgentPanel && sessionView === 'check') && (
+      {!noTabs && panelUsesTmux(panelType) && !isDiff && !(isAgentPanel && sessionView === 'check') && (
         <ConnectionStatus
           status={status}
           retryCount={retryCount}
