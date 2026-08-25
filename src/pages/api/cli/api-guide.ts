@@ -38,11 +38,13 @@ GET /api/cli/tabs?workspaceId=WS
   Response: { "tabs": [{ "tabId", "workspaceId", "name", "sessionName", "panelType", "agentProviderId", "agentSessionId" }] }
 
 POST /api/cli/tabs
-  Body: { "workspaceId": "WS", "name"?: "...", "panelType"?: "terminal" | "claude-code" | "codex-cli" | "agent-sessions" | "web-browser" | "diff", "command"?: "...", "preset"?: "naive", "mcpConfigs"?: ["/path/to/mcp.json"] }
+  Body: { "workspaceId": "WS", "name"?: "...", "panelType"?: "terminal" | "claude-code" | "codex-cli" | "agent-sessions" | "web-browser" | "document-editor" | "diff", "command"?: "...", "preset"?: "naive", "mcpConfigs"?: ["/path/to/mcp.json"] }
   Invalid panelType returns HTTP 400 with validPanelTypes.
   The naive preset creates a Claude Code tab with user/project/local settings disabled,
   while retaining purplemux hooks and only explicitly supplied MCP configs.
   Creates a tab in the first pane of the workspace.
+  document-editor creates a tmux-free Markdown editor tab. Its content is managed by
+  the app's autosave lifecycle and is removed when the tab or workspace is deleted.
   Response: { "tabId", "workspaceId", "paneId", "sessionName", "name", "panelType", "agentProviderId", "agentSessionId" }
 
 GET /api/cli/tabs/<tabId>?workspaceId=WS
@@ -54,7 +56,7 @@ PATCH /api/cli/tabs/<tabId>?workspaceId=WS
   Rename a tab.
 
 DELETE /api/cli/tabs/<tabId>?workspaceId=WS
-  Close the tab (kills tmux session and removes from layout).
+  Close the tab (kills its tmux session when applicable and removes it from the layout).
 
 POST /api/cli/tabs/<tabId>/send?workspaceId=WS
   Body: { "content": "...", "mode"?: "safe" | "replace" }

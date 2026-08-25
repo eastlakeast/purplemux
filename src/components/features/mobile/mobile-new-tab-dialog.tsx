@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Terminal, History } from 'lucide-react';
+import { FileText, Terminal, History } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Spinner from '@/components/ui/spinner';
 import ClaudeCodeIcon from '@/components/icons/claude-code-icon';
@@ -21,6 +21,7 @@ interface IMobileNewTabDialogProps {
 const MobileNewTabDialog = ({ open, onOpenChange, onCreateTab }: IMobileNewTabDialogProps) => {
   const tt = useTranslations('terminal');
   const tm = useTranslations('mobile');
+  const td = useTranslations('document');
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
 
   const MENU_ITEMS = [
@@ -28,6 +29,7 @@ const MobileNewTabDialog = ({ open, onOpenChange, onCreateTab }: IMobileNewTabDi
     { key: 'codex', type: 'codex-cli' as const, icon: <OpenAIIcon className="h-5 w-5" />, label: tt('codexNewConversation'), startCommand: 'codex-new' as const },
     { key: 'agent-sessions', type: 'agent-sessions' as const, icon: <History className="h-5 w-5 text-muted-foreground" />, label: tt('sessionList') },
     { key: 'terminal', type: 'terminal' as const, icon: <Terminal className="h-5 w-5 text-muted-foreground" />, label: 'Terminal' },
+    { key: 'document', type: 'document-editor' as const, icon: <FileText className="h-5 w-5 text-muted-foreground" />, label: td('document') },
   ] as const;
 
   const handleOpenList = async (item: (typeof MENU_ITEMS)[number]) => {

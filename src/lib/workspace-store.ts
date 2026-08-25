@@ -30,6 +30,7 @@ import {
   parseWorkspaceGroupPath,
 } from '@/lib/workspace-group-path';
 import { isWorkspaceGroupColor } from '@/lib/workspace-group-colors';
+import { panelUsesTmux } from '@/lib/panel-type';
 import type {
   IWorkspace,
   IWorkspaceGroup,
@@ -625,7 +626,7 @@ export const deleteWorkspace = async (workspaceId: string): Promise<boolean> =>
     const layout = await readLayoutFile(resolveLayoutFile(workspaceId));
     if (layout) {
       const tabs = collectAllTabs(layout.root);
-      for (const tab of tabs) {
+      for (const tab of tabs.filter((candidate) => panelUsesTmux(candidate.panelType))) {
         try {
           await killSession(tab.sessionName);
         } catch {}

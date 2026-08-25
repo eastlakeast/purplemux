@@ -1,0 +1,17 @@
+{
+  "document": "Documento",
+  "untitled": "Sem título.md",
+  "markdown": "Markdown",
+  "preview": "Visualizar",
+  "openPreview": "Abrir visualização Markdown",
+  "previewTitle": "Visualização do documento",
+  "placeholder": "Escreva uma nota ou seu próximo prompt…",
+  "editorLabel": "Editor de documentos",
+  "inputLabel": "Documento Markdown",
+  "saved": "Salvo",
+  "saving": "Salvando…",
+  "error": "Falha ao salvar automaticamente",
+  "lineColumn": "Ln {line}, Col {column}",
+  "emptyPreview": "Comece a escrever para ver a visualização Markdown",
+  "loadFailed": "Este documento não está mais disponível"
+}

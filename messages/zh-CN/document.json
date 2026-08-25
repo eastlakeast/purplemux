@@ -1,0 +1,17 @@
+{
+  "document": "文档",
+  "untitled": "无标题.md",
+  "markdown": "Markdown",
+  "preview": "预览",
+  "openPreview": "打开 Markdown 预览",
+  "previewTitle": "文档预览",
+  "placeholder": "输入备忘或下一条提示词…",
+  "editorLabel": "文档编辑器",
+  "inputLabel": "Markdown 文档",
+  "saved": "已保存",
+  "saving": "保存中…",
+  "error": "自动保存失败",
+  "lineColumn": "行 {line}，列 {column}",
+  "emptyPreview": "开始输入后将显示 Markdown 预览",
+  "loadFailed": "此文档已不可用"
+}

@@ -1,0 +1,17 @@
+{
+  "document": "Document",
+  "untitled": "Sans titre.md",
+  "markdown": "Markdown",
+  "preview": "Aperçu",
+  "openPreview": "Ouvrir l’aperçu Markdown",
+  "previewTitle": "Aperçu du document",
+  "placeholder": "Écrivez une note ou votre prochain prompt…",
+  "editorLabel": "Éditeur de document",
+  "inputLabel": "Document Markdown",
+  "saved": "Enregistré",
+  "saving": "Enregistrement…",
+  "error": "Échec de l’enregistrement automatique",
+  "lineColumn": "Lig. {line}, Col. {column}",
+  "emptyPreview": "Commencez à écrire pour afficher l’aperçu Markdown",
+  "loadFailed": "Ce document n’est plus disponible"
+}

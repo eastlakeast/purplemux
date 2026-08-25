@@ -1,0 +1,17 @@
+{
+  "document": "Документ",
+  "untitled": "Без названия.md",
+  "markdown": "Markdown",
+  "preview": "Предпросмотр",
+  "openPreview": "Открыть предпросмотр Markdown",
+  "previewTitle": "Предпросмотр документа",
+  "placeholder": "Напишите заметку или следующий запрос…",
+  "editorLabel": "Редактор документов",
+  "inputLabel": "Документ Markdown",
+  "saved": "Сохранено",
+  "saving": "Сохранение…",
+  "error": "Ошибка автосохранения",
+  "lineColumn": "Стр. {line}, Стлб. {column}",
+  "emptyPreview": "Начните писать, чтобы увидеть предпросмотр Markdown",
+  "loadFailed": "Этот документ больше недоступен"
+}

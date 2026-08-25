@@ -104,6 +104,15 @@ const checkSameOrigin = (iframe: HTMLIFrameElement): boolean => {
   }
 };
 
+const isInternalViewerUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.origin === window.location.origin && url.pathname.startsWith('/viewer/');
+  } catch {
+    return false;
+  }
+};
+
 const sessionUrlCache = new Map<string, string>();
 
 const getLastViewedUrl = (configuredUrl: string): string | null => {
@@ -197,7 +206,7 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
 
     if (!wv) {
       wv = document.createElement('webview') as unknown as IElectronWebview;
-      if (!localFilePathFromHref(url)) {
+      if (!isInternalViewerUrl(url)) {
         wv.setAttribute('partition', 'persist:web-browser');
       }
       wv.style.width = '100%';

@@ -6,6 +6,7 @@ import { getProviderByPanelType } from '@/lib/providers';
 import { checkAgentAvailabilityForPanelType, toAgentAvailabilityError } from '@/lib/agent-availability';
 import { sendKeys } from '@/lib/tmux';
 import { createLogger } from '@/lib/logger';
+import { panelUsesTmux } from '@/lib/panel-type';
 
 const log = createLogger('layout');
 
@@ -50,7 +51,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       await updateTabAgentSessionId(tab.sessionName, provider, resumeSessionId);
     }
 
-    if (tab.panelType !== 'web-browser') {
+    if (panelUsesTmux(tab.panelType)) {
       const tabProvider = getProviderByPanelType(tab.panelType);
       getStatusManager().registerTab(tab.id, {
         cliState: 'inactive',

@@ -1,0 +1,17 @@
+{
+  "document": "Dokument",
+  "untitled": "Unbenannt.md",
+  "markdown": "Markdown",
+  "preview": "Vorschau",
+  "openPreview": "Markdown-Vorschau öffnen",
+  "previewTitle": "Dokumentvorschau",
+  "placeholder": "Notiz oder nächsten Prompt schreiben…",
+  "editorLabel": "Dokumenteditor",
+  "inputLabel": "Markdown-Dokument",
+  "saved": "Gespeichert",
+  "saving": "Wird gespeichert…",
+  "error": "Automatisches Speichern fehlgeschlagen",
+  "lineColumn": "Z. {line}, Sp. {column}",
+  "emptyPreview": "Schreiben Sie etwas, um die Markdown-Vorschau zu sehen",
+  "loadFailed": "Dieses Dokument ist nicht mehr verfügbar"
+}

@@ -7,6 +7,7 @@ import {
   normalizeWorkspaceHierarchy,
   removeWorkspaceGroupFromHierarchy,
 } from '@/lib/workspace-order';
+import { clearWorkspaceDocumentDrafts } from '@/lib/document-draft';
 import type {
   IWorkspace,
   IWorkspaceGroup,
@@ -309,6 +310,7 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
     try {
       const res = await fetch(`/api/workspace/${workspaceId}`, { method: 'DELETE' });
       if (!res.ok && res.status !== 404) throw new Error();
+      clearWorkspaceDocumentDrafts(window.localStorage, workspaceId);
       bumpMutationFence();
       return true;
     } catch {
@@ -318,6 +320,7 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
   },
 
   removeWorkspace: (workspaceId) => {
+    clearWorkspaceDocumentDrafts(window.localStorage, workspaceId);
     set((state) => {
       const remaining = state.workspaces.filter((w) => w.id !== workspaceId);
       const hierarchy = toClientHierarchy(remaining, state.groups, state.sidebarOrder);

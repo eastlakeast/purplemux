@@ -11,6 +11,8 @@ import useTabStore from '@/hooks/use-tab-store';
 import useWorkspaceStore from '@/hooks/use-workspace-store';
 import useTabMetadataStore from '@/hooks/use-tab-metadata-store';
 import { resolveTabNameForPanelTypeChange } from '@/lib/tab-name';
+import { clearDocumentDraft } from '@/lib/document-draft';
+import { panelUsesTmux } from '@/lib/panel-type';
 import {
   collectPanes,
   collectAllTabs,
@@ -103,6 +105,7 @@ interface ILayoutState {
   moveTab: (tabId: string, fromPaneId: string, toPaneId: string, toIndex: number) => void;
   createTabInPane: (paneId: string, panelType?: TPanelType, command?: string, resumeSessionId?: string) => Promise<ITab | null>;
   openLocalFileViewer: (sourcePaneId: string, filePath: string) => Promise<void>;
+  openDocumentPreview: (sourcePaneId: string, tabId: string, name: string) => Promise<void>;
   deleteTabInPane: (paneId: string, tabId: string) => Promise<void>;
   restartTabInPane: (paneId: string, tabId: string, command?: string) => Promise<boolean>;
   switchTabInPane: (paneId: string, tabId: string) => void;
@@ -137,7 +140,22 @@ const updateDerived = (layout: ILayoutData | null, isSplitting: boolean) => {
   return { paneCount, canSplit: paneCount < 10 && !isSplitting };
 };
 
+const clearRemovedDocumentDrafts = (
+  workspaceId: string | null,
+  current: ILayoutData | null,
+  next: ILayoutData,
+): void => {
+  if (!workspaceId || !current || typeof window === 'undefined') return;
+  const nextIds = new Set(collectAllTabs(next.root).map((tab) => tab.id));
+  for (const tab of collectAllTabs(current.root)) {
+    if (tab.panelType === 'document-editor' && !nextIds.has(tab.id)) {
+      clearDocumentDraft(window.localStorage, workspaceId, tab.id);
+    }
+  }
+};
+
 const applyLayout = (set: (s: Partial<ILayoutState>) => void, get: () => ILayoutState, data: ILayoutData) => {
+  clearRemovedDocumentDrafts(get().workspaceId, get().layout, data);
   set({ layout: data, ...updateDerived(data, get().isSplitting) });
 };
 
@@ -147,6 +165,7 @@ const applyLayoutPreserveFocus = (
   data: ILayoutData,
 ) => {
   const current = get().layout;
+  clearRemovedDocumentDrafts(get().workspaceId, current, data);
   if (current) {
     const panes = collectPanes(data.root);
     if (current.activePaneId && panes.some((p) => p.id === current.activePaneId)) {
@@ -187,6 +206,76 @@ const patchApi = async (url: string, body: Record<string, unknown>): Promise<ILa
     return await res.json();
   } catch {
     return null;
+  }
+};
+
+const openViewerTab = async (
+  set: (state: Partial<ILayoutState> | ((state: ILayoutState) => Partial<ILayoutState>)) => void,
+  get: () => ILayoutState,
+  sourcePaneId: string,
+  name: string,
+  webUrl: string,
+): Promise<void> => {
+  const { layout, workspaceId, isSplitting } = get();
+  if (!layout || !workspaceId || isSplitting) return;
+  const targetPaneId = findAdjacentPaneId(layout.root, sourcePaneId);
+
+  try {
+    if (targetPaneId) {
+      const res = await fetch(wsQuery(`/api/layout/pane/${targetPaneId}/tabs`, workspaceId), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ panelType: 'web-browser', name, webUrl }),
+      });
+      if (!res.ok) throw new Error();
+      const newTab: ITab = await res.json();
+      applyPaneUpdate(set, get, targetPaneId, (pane) => ({
+        ...pane,
+        tabs: [...pane.tabs, newTab],
+        activeTabId: newTab.id,
+      }));
+      get().focusPane(targetPaneId);
+      void get().fetchLayout(undefined, true);
+      return;
+    }
+
+    if (collectPanes(layout.root).length >= 10) {
+      const res = await fetch(wsQuery(`/api/layout/pane/${sourcePaneId}/tabs`, workspaceId), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ panelType: 'web-browser', name, webUrl }),
+      });
+      if (!res.ok) throw new Error();
+      const newTab: ITab = await res.json();
+      applyPaneUpdate(set, get, sourcePaneId, (pane) => ({
+        ...pane,
+        tabs: [...pane.tabs, newTab],
+        activeTabId: newTab.id,
+      }));
+      return;
+    }
+
+    set({ isSplitting: true, canSplit: false });
+    const res = await fetch(wsQuery('/api/layout/pane', workspaceId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourcePaneId,
+        orientation: 'horizontal',
+        panelType: 'web-browser',
+        name,
+        webUrl,
+      }),
+    });
+    if (!res.ok) throw new Error();
+    applyLayout(set, get, await res.json() as ILayoutData);
+  } catch {
+    toast.error(t('terminal', 'tabCreateFailed'));
+  } finally {
+    set((state) => ({
+      isSplitting: false,
+      canSplit: state.paneCount < 10,
+    }));
   }
 };
 
@@ -340,10 +429,12 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
       const activeTab = pane?.tabs.find((t) => t.id === pane.activeTabId);
       if (activeTab) {
         panelType = activeTab.panelType;
-        try {
-          const res = await fetch(wsQuery(`/api/layout/cwd?session=${activeTab.sessionName}`, workspaceId));
-          if (res.ok) cwd = (await res.json()).cwd;
-        } catch { /* fallback */ }
+        if (panelUsesTmux(activeTab.panelType)) {
+          try {
+            const res = await fetch(wsQuery(`/api/layout/cwd?session=${activeTab.sessionName}`, workspaceId));
+            if (res.ok) cwd = (await res.json()).cwd;
+          } catch { /* fallback */ }
+        }
       }
 
       const res = await fetch(wsQuery('/api/layout/pane', workspaceId), {
@@ -390,13 +481,20 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
     const { layout, workspaceId } = get();
     if (!layout) return;
     if (collectPanes(layout.root).length <= 1) return;
-
+    const documentTabIds = findPane(layout.root, paneId)?.tabs
+      .filter((tab) => tab.panelType === 'document-editor')
+      .map((tab) => tab.id) ?? [];
     try {
       const res = await fetch(wsQuery(`/api/layout/pane/${paneId}`, workspaceId), {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error();
       const data: ILayoutData = await res.json();
+      if (workspaceId) {
+        for (const tabId of documentTabIds) {
+          clearDocumentDraft(window.localStorage, workspaceId, tabId);
+        }
+      }
       applyLayoutPreserveFocus(set, get, data);
     } catch {
       toast.error('Pane을 닫을 수 없습니다');
@@ -483,7 +581,7 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
       }
 
       let cwd: string | undefined;
-      if (panelType !== 'web-browser' && activeTab) {
+      if (panelUsesTmux(panelType) && activeTab) {
         cwd = useTabMetadataStore.getState().metadata[activeTab.id]?.cwd;
       }
 
@@ -514,8 +612,8 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
   },
 
   openLocalFileViewer: async (sourcePaneId, filePath) => {
-    const { layout, workspaceId, isSplitting } = get();
-    if (!layout || !workspaceId || isSplitting) return;
+    const { layout } = get();
+    if (!layout) return;
 
     const { localFileName, localFilePathToViewerUrl } = await import('@/lib/local-file-links');
     const sourcePane = findPane(layout.root, sourcePaneId);
@@ -528,71 +626,26 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
       window.location.origin,
     ).toString();
     const name = localFileName(filePath);
-    const targetPaneId = findAdjacentPaneId(layout.root, sourcePaneId);
+    await openViewerTab(set, get, sourcePaneId, name, webUrl);
+  },
 
-    try {
-      if (targetPaneId) {
-        const res = await fetch(wsQuery(`/api/layout/pane/${targetPaneId}/tabs`, workspaceId), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ panelType: 'web-browser', name, webUrl }),
-        });
-        if (!res.ok) throw new Error();
-        const newTab: ITab = await res.json();
-        applyPaneUpdate(set, get, targetPaneId, (pane) => ({
-          ...pane,
-          tabs: [...pane.tabs, newTab],
-          activeTabId: newTab.id,
-        }));
-        get().focusPane(targetPaneId);
-        void get().fetchLayout(undefined, true);
-        return;
-      }
-
-      if (collectPanes(layout.root).length >= 10) {
-        const res = await fetch(wsQuery(`/api/layout/pane/${sourcePaneId}/tabs`, workspaceId), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ panelType: 'web-browser', name, webUrl }),
-        });
-        if (!res.ok) throw new Error();
-        const newTab: ITab = await res.json();
-        applyPaneUpdate(set, get, sourcePaneId, (pane) => ({
-          ...pane,
-          tabs: [...pane.tabs, newTab],
-          activeTabId: newTab.id,
-        }));
-        return;
-      }
-
-      set({ isSplitting: true, canSplit: false });
-      const res = await fetch(wsQuery('/api/layout/pane', workspaceId), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourcePaneId,
-          orientation: 'horizontal',
-          panelType: 'web-browser',
-          name,
-          webUrl,
-        }),
-      });
-      if (!res.ok) throw new Error();
-      const data: ILayoutData = await res.json();
-      applyLayout(set, get, data);
-    } catch {
-      toast.error(t('terminal', 'tabCreateFailed'));
-    } finally {
-      set((state) => ({
-        isSplitting: false,
-        canSplit: state.paneCount < 10,
-      }));
-    }
+  openDocumentPreview: async (sourcePaneId, tabId, name) => {
+    const workspaceId = get().workspaceId;
+    if (!workspaceId) return;
+    const previewUrl = new URL('/viewer/document', window.location.origin);
+    previewUrl.searchParams.set('workspace', workspaceId);
+    previewUrl.searchParams.set('tab', tabId);
+    await openViewerTab(set, get, sourcePaneId, `${name || 'Document'} Preview`, previewUrl.toString());
   },
 
   deleteTabInPane: async (paneId, tabId) => {
     clearInputDraft(tabId);
     useTabStore.getState().cancelTab(tabId);
+    const { layout: currentLayout, workspaceId: currentWorkspaceId } = get();
+    const closingTab = currentLayout ? findPane(currentLayout.root, paneId)?.tabs.find((tab) => tab.id === tabId) : null;
+    if (closingTab?.panelType === 'document-editor' && currentWorkspaceId) {
+      clearDocumentDraft(window.localStorage, currentWorkspaceId, tabId);
+    }
 
     applyPaneUpdate(set, get, paneId, (pane) => {
       const sorted = [...pane.tabs].sort((a, b) => a.order - b.order);
@@ -679,7 +732,11 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
 
   removeTabLocally: (paneId, tabId) => {
     clearInputDraft(tabId);
-    const { workspaceId } = get();
+    const { layout, workspaceId } = get();
+    const tab = layout ? findPane(layout.root, paneId)?.tabs.find((candidate) => candidate.id === tabId) : null;
+    if (tab?.panelType === 'document-editor' && workspaceId) {
+      clearDocumentDraft(window.localStorage, workspaceId, tabId);
+    }
 
     fetch(wsQuery(`/api/layout/pane/${paneId}/tabs/${tabId}`, workspaceId), { method: 'DELETE' })
       .then(() => get().fetchLayout())
