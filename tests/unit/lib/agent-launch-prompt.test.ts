@@ -15,6 +15,10 @@ describe('purplemux agent launch prompt', () => {
     ['Codex', buildCodexPromptBody(workspace)],
   ])('gives %s the workspace-aware purplemux launch commands', (_provider, prompt) => {
     expect(prompt).toContain(
+      'purplemux workspace create -n NAME -d DIR --worker claude-code --worker-name NAME --json',
+    );
+    expect(prompt).toContain('do not create a redundant second tab');
+    expect(prompt).toContain(
       `purplemux tab create -w ws-test123 -t codex-cli -c "node '/Users/donghojo/.purplemux/codex-launcher.js' --workspace-id 'ws-test123'"`,
     );
     expect(prompt).toContain(

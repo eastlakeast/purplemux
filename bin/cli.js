@@ -95,14 +95,42 @@ const cmdWorkspaceCreate = async (args) => {
   const name = flagValue(args, '--name') || flagValue(args, '-n');
   const groupPath = flagValue(args, '--group') || flagValue(args, '-g');
   const directories = flagValues(args, ['--directory', '-d']).map(resolveCliDirectory);
+  const workerType = flagValue(args, '--worker') || (flagValue(args, '--preset') === 'naive' ? 'claude-code' : null);
+  const workerName = flagValue(args, '--worker-name');
+  const preset = flagValue(args, '--preset');
+  const mcpConfigs = flagValues(args, ['--mcp-config']).map(resolveCliDirectory);
+  const json = args.includes('--json');
   if (!name?.trim()) die('--name is required');
+  if (workerType && !['claude-code', 'codex-cli'].includes(workerType)) {
+    die('--worker must be claude-code or codex-cli');
+  }
+  if (workerName && !workerType) die('--worker-name requires --worker');
+  if (preset && preset !== 'naive') die('--preset must be naive');
+  if (preset === 'naive' && workerType !== 'claude-code') {
+    die('--preset naive supports claude-code only');
+  }
+  if (mcpConfigs.length > 0 && preset !== 'naive') {
+    die('--mcp-config requires --preset naive');
+  }
 
   const { body } = await api('POST', '/api/cli/workspaces', {
     name: name.trim(),
     ...(groupPath ? { groupPath } : {}),
     ...(directories.length > 0 ? { directories } : {}),
+    ...(workerType ? {
+      initialTab: {
+        panelType: workerType,
+        ...(workerName ? { name: workerName } : {}),
+        ...(preset ? { preset } : {}),
+        ...(mcpConfigs.length > 0 ? { mcpConfigs } : {}),
+      },
+    } : {}),
   });
-  process.stdout.write(`${body.id}\n`);
+  if (json) {
+    out(body);
+  } else {
+    process.stdout.write(`${body.id}\n`);
+  }
 };
 
 const cmdWorkspaceRename = async (args) => {
@@ -583,7 +611,9 @@ Usage: purplemux <command> [args...]
 Commands:
   workspaces                               List workspaces
   workspace create -n NAME [-g GROUP_PATH] [-d DIR]...
-                                          Create a workspace and print its workspace ID
+                   [--worker claude-code|codex-cli] [--worker-name NAME]
+                   [--preset naive] [--mcp-config FILE]... [--json]
+                                          Create a workspace; initialize its only tab as a worker when requested
   workspace rename WS NEW_NAME            Rename a workspace
   workspace delete WS                     Delete a workspace and all of its tabs
   tab list [-w WS]                         List tabs (optionally scoped to workspace)

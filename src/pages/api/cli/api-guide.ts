@@ -11,10 +11,17 @@ GET /api/cli/workspaces
   Response: { "workspaces": [{ "id": "...", "name": "...", "groupPath": "parent/child" | null, "directories": [...] }] }
 
 POST /api/cli/workspaces
-  Body: { "name": "...", "groupPath"?: "parent/child", "directories"?: ["~/workspace/project"] }
+  Body: { "name": "...", "groupPath"?: "parent/child", "directories"?: ["~/workspace/project"],
+          "initialTab"?: { "panelType": "claude-code" | "codex-cli", "name"?: "...",
+                           "preset"?: "naive", "mcpConfigs"?: ["/path/to/mcp.json"] } }
   Creates missing groups along groupPath and appends the workspace inside the final group.
+  initialTab turns the workspace's single default tab into the requested worker and launches
+  it with purplemux's canonical provider command. It does not create a second tab.
+  The naive preset is Claude-only and enables explicitly supplied MCP configs.
   Requires a loaded local Electron app so the sidebar is updated immediately; otherwise returns HTTP 503.
-  Response: { "id": "ws-...", "name": "...", "groupPath": "parent/child" | null, "directories": [...] }
+  Response: { "id": "ws-...", "name": "...", "groupPath": "parent/child" | null,
+              "directories": [...], "initialTab": { "tabId", "name", "panelType", "sessionName",
+                                                       "agentProviderId", "agentSessionId" } }
 
 PATCH /api/cli/workspaces/<workspaceId>
   Body: { "name": "..." }
@@ -146,7 +153,10 @@ purplemux workspaces
   List workspaces, including groupPath.
 
 purplemux workspace create -n NAME [-g GROUP_PATH] [-d DIRECTORY]...
-  Create a workspace. Prints only the new workspace ID to stdout.
+                           [--worker claude-code|codex-cli] [--worker-name NAME]
+                           [--preset naive] [--mcp-config FILE]... [--json]
+  Create a workspace. --worker initializes and launches its only tab as that worker.
+  Default output is the workspace ID; --json includes initialTab.tabId for direct dispatch.
 
 purplemux workspace rename WS NEW_NAME
   Rename a workspace.
@@ -155,7 +165,7 @@ purplemux workspace delete WS
   Delete a workspace and all of its tabs.
 
 purplemux tab create -w WS --preset naive [--mcp-config FILE]...
-  Create an uncustomized Claude worker while retaining purplemux hooks.
+  Add an uncustomized Claude worker to an existing workspace.
 
 purplemux tab send -w WS TAB_ID --replace CONTENT...
 purplemux tab clear -w WS TAB_ID
