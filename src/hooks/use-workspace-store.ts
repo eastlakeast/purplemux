@@ -8,6 +8,7 @@ import {
   removeWorkspaceGroupFromHierarchy,
 } from '@/lib/workspace-order';
 import { clearWorkspaceDocumentDrafts } from '@/lib/document-draft';
+import { clearWorkspaceAttachmentDrafts } from '@/hooks/use-attachment-draft-store';
 import type {
   IWorkspace,
   IWorkspaceGroup,
@@ -311,6 +312,7 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
       const res = await fetch(`/api/workspace/${workspaceId}`, { method: 'DELETE' });
       if (!res.ok && res.status !== 404) throw new Error();
       clearWorkspaceDocumentDrafts(window.localStorage, workspaceId);
+      clearWorkspaceAttachmentDrafts(workspaceId);
       bumpMutationFence();
       return true;
     } catch {
@@ -321,6 +323,7 @@ const useWorkspaceStore = create<IWorkspaceState>((set, get) => ({
 
   removeWorkspace: (workspaceId) => {
     clearWorkspaceDocumentDrafts(window.localStorage, workspaceId);
+    clearWorkspaceAttachmentDrafts(workspaceId);
     set((state) => {
       const remaining = state.workspaces.filter((w) => w.id !== workspaceId);
       const hierarchy = toClientHierarchy(remaining, state.groups, state.sidebarOrder);

@@ -11,6 +11,12 @@ interface ITimelineScrollSnapshot {
   itemOffset: number;
   scrollTop: number;
   width: number;
+  height: number;
+  wasAtBottom: boolean;
+}
+
+export interface ITimelineScrollRestoreOptions {
+  fallbackToBottom?: boolean;
 }
 
 export interface ITimelinePrependScrollSnapshot {
@@ -116,6 +122,8 @@ export const captureTimelineScroll = (target: HTMLElement): ITimelineScrollSnaps
     itemOffset: visible ? visible.top - rootRect.top : 0,
     scrollTop: root.scrollTop,
     width: root.clientWidth,
+    height: root.clientHeight,
+    wasAtBottom: root.scrollHeight - root.scrollTop - root.clientHeight <= 4,
   };
 };
 
@@ -173,7 +181,10 @@ export const releaseTimelinePrependScroll = (
   }
 };
 
-export const restoreTimelineScrollAfterLayout = (snapshot: ITimelineScrollSnapshot): (() => void) => {
+export const restoreTimelineScrollAfterLayout = (
+  snapshot: ITimelineScrollSnapshot,
+  options: ITimelineScrollRestoreOptions = {},
+): (() => void) => {
   let frameId = 0;
   let changedAt: number | null = null;
   const startedAt = performance.now();
@@ -202,12 +213,19 @@ export const restoreTimelineScrollAfterLayout = (snapshot: ITimelineScrollSnapsh
       root.style.overflowAnchor = 'none';
     }
 
+    if (snapshot.wasAtBottom) {
+      root.scrollTop = root.scrollHeight;
+      return;
+    }
     if (!snapshot.itemId) {
-      root.scrollTop = snapshot.scrollTop;
+      root.scrollTop = options.fallbackToBottom ? root.scrollHeight : snapshot.scrollTop;
       return;
     }
     const item = findItemById(root, snapshot.itemId);
-    if (!item) return;
+    if (!item) {
+      if (options.fallbackToBottom) root.scrollTop = root.scrollHeight;
+      return;
+    }
     const rootTop = root.getBoundingClientRect().top;
     const currentOffset = item.getBoundingClientRect().top - rootTop;
     root.scrollTop = anchoredScrollTop(root.scrollTop, currentOffset, snapshot.itemOffset);
@@ -220,7 +238,10 @@ export const restoreTimelineScrollAfterLayout = (snapshot: ITimelineScrollSnapsh
       return;
     }
 
-    if (Math.abs(root.clientWidth - snapshot.width) > 1) {
+    if (
+      Math.abs(root.clientWidth - snapshot.width) > 1
+      || Math.abs(root.clientHeight - snapshot.height) > 1
+    ) {
       changedAt ??= now;
       restore(root);
     }
