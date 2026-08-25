@@ -17,6 +17,7 @@ import { fetchCodexLaunchCommand } from '@/lib/providers/codex/client';
 import { notifyCodexLaunchFailed } from '@/lib/codex-notifications';
 import useConfigStore from '@/hooks/use-config-store';
 import { useAgentInstallCheck } from '@/hooks/use-agent-install-check';
+import { findNewTabShortcutIndex } from '@/lib/new-tab-shortcuts';
 
 interface IPaneNewTabMenuProps {
   paneId: string;
@@ -131,30 +132,40 @@ const PaneNewTabMenu = ({ paneId, isCreating, activePanelType, onCreateTab }: IP
     void launchCodexNewConversation();
   }, [ensureAgentInstalled, launchCodexNewConversation, onCreateTab, wsId]);
 
-  const handleOpenList = (item: typeof menuItems[number]) => {
+  const handleOpenList = useCallback((item: typeof menuItems[number]) => {
     setOpen(false);
     onCreateTab(item.type);
-  };
+  }, [onCreateTab]);
 
-  const handleSelect = (item: typeof menuItems[number]) => {
+  const handleSelect = useCallback((item: typeof menuItems[number]) => {
     if ('startAgent' in item && item.startAgent) {
       void handleStartAgent(item.startAgent);
       return;
     }
     handleOpenList(item);
-  };
+  }, [handleOpenList, handleStartAgent]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleShortcutKey = (event: KeyboardEvent) => {
+      const shortcutIndex = findNewTabShortcutIndex(
+        menuItems.map((item) => item.shortcut),
+        event,
+      );
+      if (shortcutIndex < 0) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveIndex(shortcutIndex);
+      handleSelect(menuItems[shortcutIndex]);
+    };
+
+    window.addEventListener('keydown', handleShortcutKey, { capture: true });
+    return () => window.removeEventListener('keydown', handleShortcutKey, { capture: true });
+  }, [handleSelect, menuItems, open]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!e.metaKey && !e.ctrlKey && !e.altKey) {
-      const shortcutIndex = menuItems.findIndex((item) => item.shortcut === e.key.toLowerCase());
-      if (shortcutIndex >= 0) {
-        e.preventDefault();
-        const item = menuItems[shortcutIndex];
-        setActiveIndex(shortcutIndex);
-        handleSelect(item);
-        return;
-      }
-    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setActiveIndex((i) => (i + 1) % menuItems.length);
