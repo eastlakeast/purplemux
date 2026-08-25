@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   anchoredScrollTop,
+  captureTimelineScroll,
   captureTimelinePrependScroll,
   calculateTimelineSpacerHeight,
   createTimelineScrollAnchorId,
   findVisibleTimelineItem,
   prependAnchoredScrollTop,
   releaseTimelinePrependScroll,
+  restoreTimelineScrollAfterLayout,
   restoreTimelinePrependScroll,
 } from '@/lib/timeline-scroll-anchor';
 
@@ -73,6 +75,86 @@ describe('timeline scroll anchoring', () => {
 
     releaseTimelinePrependScroll(snapshot);
     expect(root.style.overflowAnchor).toBe('auto');
+  });
+
+  it('waits for a remounted timeline root and falls back to its bottom', () => {
+    const originalDocument = globalThis.document;
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    const frames: FrameRequestCallback[] = [];
+    let remountedRoot: HTMLElement | null = null;
+    const pane = {
+      dataset: { paneId: 'pane-one' },
+      querySelector: () => remountedRoot,
+    } as unknown as HTMLElement;
+    const oldRoot = {
+      isConnected: true,
+      clientWidth: 800,
+      clientHeight: 300,
+      scrollHeight: 1_000,
+      scrollTop: 200,
+      style: { scrollBehavior: '', overflowAnchor: '' },
+      closest: (selector: string) => selector === '[role="log"]'
+        ? oldRoot
+        : { dataset: { paneId: 'pane-one' } },
+      getBoundingClientRect: () => ({ top: 100, bottom: 400 }),
+      querySelectorAll: () => [],
+    } as unknown as HTMLElement;
+
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: { querySelectorAll: () => [pane] },
+    });
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return frames.length;
+      },
+    });
+    Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+      configurable: true,
+      value: () => {},
+    });
+
+    try {
+      const snapshot = captureTimelineScroll(oldRoot);
+      expect(snapshot).not.toBeNull();
+      oldRoot.isConnected = false;
+      const cleanup = restoreTimelineScrollAfterLayout(snapshot!, { fallbackToBottom: true });
+      const startedAt = performance.now();
+
+      frames.shift()?.(startedAt + 16);
+      expect(frames).toHaveLength(1);
+
+      remountedRoot = {
+        isConnected: true,
+        clientWidth: 400,
+        clientHeight: 300,
+        scrollHeight: 1_200,
+        scrollTop: 0,
+        style: { scrollBehavior: '', overflowAnchor: '' },
+        getBoundingClientRect: () => ({ top: 100, bottom: 400 }),
+        querySelectorAll: () => [],
+      } as unknown as HTMLElement;
+      frames.shift()?.(startedAt + 32);
+
+      expect(remountedRoot.scrollTop).toBe(1_200);
+      cleanup();
+    } finally {
+      Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: originalDocument,
+      });
+      Object.defineProperty(globalThis, 'requestAnimationFrame', {
+        configurable: true,
+        value: originalRequestAnimationFrame,
+      });
+      Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+        configurable: true,
+        value: originalCancelAnimationFrame,
+      });
+    }
   });
 
   it('consumes pinned bottom space as response content grows', () => {

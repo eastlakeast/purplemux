@@ -30,6 +30,7 @@ export interface ITimelinePrependScrollSnapshot {
 
 const RESTORE_DURATION_MS = 450;
 const WAIT_FOR_REFLOW_MS = 800;
+const WAIT_FOR_ROOT_REATTACH_MS = 3_000;
 
 export const findVisibleTimelineItem = (
   items: ITimelineItemBounds[],
@@ -234,7 +235,11 @@ export const restoreTimelineScrollAfterLayout = (
   const tick = (now: number) => {
     const root = resolveRoot(snapshot);
     if (!root) {
-      cleanup();
+      if (now - startedAt < WAIT_FOR_ROOT_REATTACH_MS) {
+        frameId = requestAnimationFrame(tick);
+      } else {
+        cleanup();
+      }
       return;
     }
 
