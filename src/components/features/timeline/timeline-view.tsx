@@ -40,6 +40,7 @@ import PatchApplyItem from '@/components/features/timeline/patch-apply-item';
 import ContextCompactedItem from '@/components/features/timeline/context-compacted-item';
 import ErrorNoticeItem from '@/components/features/timeline/error-notice-item';
 import TimelineSearchBar from '@/components/features/timeline/timeline-search-bar';
+import PromptHistoryRail from '@/components/features/timeline/prompt-history-rail';
 import useTabStore from '@/hooks/use-tab-store';
 import { getEntryText } from '@/lib/timeline-entry-text';
 import { firstMatchRange } from '@/lib/timeline-search-dom';
@@ -817,6 +818,13 @@ const TimelineView = ({
     scrollToBottom('smooth');
   }, [clearPrependScrollAnchor, scrollToBottom, updateHasOverflowBelow]);
 
+  const handlePromptHistoryNavigate = useCallback((entryId: string) => {
+    const root = scrollRef.current;
+    const item = root?.querySelector(`[data-timeline-item="${CSS.escape(entryId)}"]`);
+    if (!(item instanceof HTMLElement)) return;
+    item.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, []);
+
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -911,10 +919,11 @@ const TimelineView = ({
           inputRef={searchInputRef}
         />
       )}
+      <PromptHistoryRail entries={entries} onNavigate={handlePromptHistoryNavigate} />
       <TimelineSelectionCopy scrollRef={scrollRef} />
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto py-2 transition-opacity"
+        className="flex-1 overflow-y-auto py-2 transition-opacity sm:pl-5"
         style={{
           opacity: skipAnimation ? 0 : 1,
           transitionDuration: '300ms',
