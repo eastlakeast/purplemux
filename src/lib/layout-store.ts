@@ -236,11 +236,13 @@ export const crossCheckLayout = async (
 
 export interface ICreateLayoutOptions {
   panelType?: TPanelType;
+  tabName?: string;
 }
 
 export const createDefaultLayout = async (wsId: string, cwd: string, options?: ICreateLayoutOptions): Promise<ILayoutData> => {
   const { pane, tab } = createDefaultPaneNode(wsId, cwd);
   if (options?.panelType) tab.panelType = options.panelType;
+  if (options?.tabName?.trim()) tab.name = options.tabName.trim();
   await createSession(tab.sessionName, 80, 24, cwd);
   return {
     root: pane,

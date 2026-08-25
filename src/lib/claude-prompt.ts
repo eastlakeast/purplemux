@@ -26,7 +26,7 @@ so no environment setup is needed.
 
 \`\`\`bash
 purplemux workspaces                                # list all workspaces
-purplemux workspace create -n NAME [-g GROUP_PATH] [-d DIR]...  # create workspace; prints workspace ID
+purplemux workspace create -n NAME [-g GROUP_PATH] [-d DIR]... [--worker TYPE] [--worker-name NAME] [--json]  # create workspace; optionally launch its only tab as a worker
 purplemux workspace rename WS NEW_NAME              # rename a workspace
 purplemux workspace delete WS                       # delete a workspace and its tabs
 purplemux tab list -w ${ws.id}                        # list tabs in this workspace
@@ -84,11 +84,16 @@ purplemux api-guide
   (long-running builds, different project context, parallel exploration).
 - Poll \`status\` and read \`result\` to verify delegated work.
 - Prefer small, scoped tabs over cramming everything into one session.
-- When you need a new Codex or Claude Code session, create a purplemux tab with
-  the matching full launch command below. Do not run plain \`codex\`, plain
-  \`claude\`, or the launcher directly inside an existing terminal.
+- When creating a new workspace for a worker, initialize its single default tab
+  with \`workspace create --worker\`. Use \`--json\` to capture both the workspace
+  ID and \`initialTab.tabId\`; do not create a redundant second tab.
+- When adding a worker to an existing workspace, create a purplemux tab with the
+  matching full launch command below. Do not run plain \`codex\`, plain \`claude\`,
+  or the launcher directly inside a terminal tab.
 
 \`\`\`bash
+purplemux workspace create -n NAME -d DIR --worker codex-cli --worker-name NAME --json
+purplemux workspace create -n NAME -d DIR --worker claude-code --worker-name NAME --json
 purplemux tab create -w ${ws.id} -t codex-cli -c "node '/Users/donghojo/.purplemux/codex-launcher.js' --workspace-id '${ws.id}'"
 purplemux tab create -w ${ws.id} -t claude-code -c "claude --settings ~/.purplemux/hooks.json --append-system-prompt-file ~/.purplemux/workspaces/${ws.id}/claude-prompt.md --dangerously-skip-permissions"
 \`\`\`
