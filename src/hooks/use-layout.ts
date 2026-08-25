@@ -12,7 +12,9 @@ import useWorkspaceStore from '@/hooks/use-workspace-store';
 import useTabMetadataStore from '@/hooks/use-tab-metadata-store';
 import { resolveTabNameForPanelTypeChange } from '@/lib/tab-name';
 import { clearDocumentDraft } from '@/lib/document-draft';
+import { clearAttachmentDraft } from '@/hooks/use-attachment-draft-store';
 import { panelUsesTmux } from '@/lib/panel-type';
+import { captureTimelineScroll, restoreTimelineScrollAfterLayout } from '@/lib/timeline-scroll-anchor';
 import {
   collectPanes,
   collectAllTabs,
@@ -152,6 +154,18 @@ const clearRemovedDocumentDrafts = (
       clearDocumentDraft(window.localStorage, workspaceId, tab.id);
     }
   }
+};
+
+const captureTimelineLayoutScrolls = (): (() => void) => {
+  if (typeof document === 'undefined') return () => {};
+  const snapshots = Array.from(document.querySelectorAll<HTMLElement>('[role="log"]'))
+    .map((timeline) => captureTimelineScroll(timeline))
+    .filter((snapshot) => snapshot !== null);
+  return () => {
+    for (const snapshot of snapshots) {
+      restoreTimelineScrollAfterLayout(snapshot, { fallbackToBottom: true });
+    }
+  };
 };
 
 const applyLayout = (set: (s: Partial<ILayoutState>) => void, get: () => ILayoutState, data: ILayoutData) => {
@@ -421,6 +435,7 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
     if (!layout || isSplitting) return;
     if (collectPanes(layout.root).length >= 10) return;
 
+    const restoreTimelineScrolls = captureTimelineLayoutScrolls();
     set({ isSplitting: true, canSplit: false });
     try {
       let cwd: string | undefined;
@@ -445,6 +460,7 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
       if (!res.ok) throw new Error();
       const data: ILayoutData = await res.json();
       applyLayout(set, get, data);
+      restoreTimelineScrolls();
     } catch {
       toast.error(t('terminal', 'splitFailed'));
     } finally {
@@ -458,6 +474,7 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
     const pane = findPane(layout.root, paneId);
     if (!pane || pane.tabs.length <= 1 || !pane.tabs.some((tab) => tab.id === tabId)) return;
 
+    const restoreTimelineScrolls = captureTimelineLayoutScrolls();
     set({ isSplitting: true, canSplit: false });
     try {
       const res = await fetch(
@@ -470,6 +487,7 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
       );
       if (!res.ok) throw new Error();
       applyLayout(set, get, await res.json() as ILayoutData);
+      restoreTimelineScrolls();
     } catch {
       toast.error(t('terminal', 'splitFailed'));
     } finally {
@@ -484,6 +502,8 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
     const documentTabIds = findPane(layout.root, paneId)?.tabs
       .filter((tab) => tab.panelType === 'document-editor')
       .map((tab) => tab.id) ?? [];
+    const closingTabIds = findPane(layout.root, paneId)?.tabs.map((tab) => tab.id) ?? [];
+    const restoreTimelineScrolls = captureTimelineLayoutScrolls();
     try {
       const res = await fetch(wsQuery(`/api/layout/pane/${paneId}`, workspaceId), {
         method: 'DELETE',
@@ -495,7 +515,9 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
           clearDocumentDraft(window.localStorage, workspaceId, tabId);
         }
       }
+      for (const tabId of closingTabIds) clearAttachmentDraft(tabId);
       applyLayoutPreserveFocus(set, get, data);
+      restoreTimelineScrolls();
     } catch {
       toast.error('Pane을 닫을 수 없습니다');
     }
@@ -639,7 +661,9 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
   },
 
   deleteTabInPane: async (paneId, tabId) => {
+    const restoreTimelineScrolls = captureTimelineLayoutScrolls();
     clearInputDraft(tabId);
+    clearAttachmentDraft(tabId);
     useTabStore.getState().cancelTab(tabId);
     const { layout: currentLayout, workspaceId: currentWorkspaceId } = get();
     const closingTab = currentLayout ? findPane(currentLayout.root, paneId)?.tabs.find((tab) => tab.id === tabId) : null;
@@ -666,6 +690,8 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
       if (!res.ok && res.status !== 404) {
         toast.error(t('terminal', 'tabDeleteError'));
         await get().fetchLayout();
+      } else {
+        restoreTimelineScrolls();
       }
     } catch {
       toast.error(t('terminal', 'tabDeleteError'));
@@ -732,6 +758,7 @@ const useLayoutStore = create<ILayoutState>((set, get) => ({
 
   removeTabLocally: (paneId, tabId) => {
     clearInputDraft(tabId);
+    clearAttachmentDraft(tabId);
     const { layout, workspaceId } = get();
     const tab = layout ? findPane(layout.root, paneId)?.tabs.find((candidate) => candidate.id === tabId) : null;
     if (tab?.panelType === 'document-editor' && workspaceId) {

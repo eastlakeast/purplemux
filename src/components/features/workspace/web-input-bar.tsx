@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import useWebInput, { clearInputDraft } from '@/hooks/use-web-input';
 import useIsMobileDevice from '@/hooks/use-is-mobile-device';
 import useMessageHistory from '@/hooks/use-message-history';
+import useAttachmentDraftStore, { type IAttachmentDraft } from '@/hooks/use-attachment-draft-store';
 import { registerPushTarget } from '@/hooks/use-web-push';
 import InterruptDialog from '@/components/features/workspace/interrupt-dialog';
 import MessageHistoryPicker from '@/components/features/workspace/message-history-picker';
@@ -23,14 +24,8 @@ const PADDING_Y = 16;
 const escapePathForPrompt = (filePath: string): string =>
   filePath.replace(/[ \t\\'"(){}[\]!#$&;`|*?<>~^%]/g, '\\$&');
 
-interface IAttachment {
-  id: string;
-  path: string;
-  filename: string;
-  thumbnail: string;
-}
-
 const MAX_ATTACHMENTS = 20;
+const EMPTY_ATTACHMENTS: IAttachmentDraft[] = [];
 const ATTACHMENT_CONFIRM_TIMEOUT_MS = 5000;
 const ATTACHMENT_POLL_INTERVAL_MS = 100;
 
@@ -109,29 +104,19 @@ const WebInputBar = ({
   const [isUploading, setIsUploading] = useState(false);
   const [isDispatching, setIsDispatching] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const [attachments, setAttachments] = useState<IAttachment[]>([]);
+  const attachments = useAttachmentDraftStore((state) =>
+    tabId ? state.byTabId[tabId]?.attachments ?? EMPTY_ATTACHMENTS : EMPTY_ATTACHMENTS,
+  );
+  const addAttachmentDrafts = useAttachmentDraftStore((state) => state.add);
+  const removeAttachmentDraft = useAttachmentDraftStore((state) => state.remove);
+  const clearAttachmentDraft = useAttachmentDraftStore((state) => state.clearTab);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const attachmentsRef = useRef<IAttachment[]>([]);
+  const attachmentsRef = useRef<IAttachmentDraft[]>([]);
 
   useEffect(() => {
     attachmentsRef.current = attachments;
   }, [attachments]);
-
-  useEffect(() => {
-    return () => {
-      attachmentsRef.current.forEach((a) => URL.revokeObjectURL(a.thumbnail));
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!visible) {
-      setAttachments((prev) => {
-        prev.forEach((a) => URL.revokeObjectURL(a.thumbnail));
-        return [];
-      });
-    }
-  }, [visible]);
 
   useEffect(() => {
     focusInputRef.current = focusInput;
@@ -180,8 +165,7 @@ const WebInputBar = ({
     const text = value;
     const isSlash = trimmed.startsWith('/');
 
-    sentAttachments.forEach((a) => URL.revokeObjectURL(a.thumbnail));
-    setAttachments([]);
+    if (tabId) clearAttachmentDraft(tabId);
     setValue('');
     if (tabId) clearInputDraft(tabId);
     if (hasText && !isSlash) {
@@ -254,7 +238,7 @@ const WebInputBar = ({
     } finally {
       setIsDispatching(false);
     }
-  }, [canSend, isDispatching, value, attachments, send, sendStdin, setValue, onSend, agentSessionId, sessionName, tabId, addHistory, onAddPendingMessage, onRemovePendingMessage, t, submitDelayMs, isCodex]);
+  }, [canSend, isDispatching, value, attachments, send, sendStdin, setValue, onSend, agentSessionId, sessionName, tabId, addHistory, onAddPendingMessage, onRemovePendingMessage, t, submitDelayMs, isCodex, clearAttachmentDraft]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
@@ -306,12 +290,8 @@ const WebInputBar = ({
   }, [textareaRef]);
 
   const removeAttachment = useCallback((id: string) => {
-    setAttachments((prev) => {
-      const removed = prev.find((a) => a.id === id);
-      if (removed) URL.revokeObjectURL(removed.thumbnail);
-      return prev.filter((a) => a.id !== id);
-    });
-  }, []);
+    if (tabId) removeAttachmentDraft(tabId, id);
+  }, [removeAttachmentDraft, tabId]);
 
   const insertAtCursor = useCallback((text: string) => {
     const textarea = textareaRef.current;
@@ -350,14 +330,14 @@ const WebInputBar = ({
     const results = await Promise.all(
       accepted.map(async (file) => ({ file, result: await uploadImage(file, { wsId, tabId }) })),
     );
-    const next: IAttachment[] = results.map(({ file, result }) => ({
+    const next = results.map(({ file, result }) => ({
       id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
       path: result.path,
       filename: file.name || 'image',
       thumbnail: URL.createObjectURL(file),
     }));
-    setAttachments((prev) => [...prev, ...next]);
-  }, [wsId, tabId, t]);
+    if (tabId) addAttachmentDrafts(tabId, wsId, next);
+  }, [wsId, tabId, t, addAttachmentDrafts]);
 
   const uploadFilesAsPaths = useCallback(async (files: File[]): Promise<void> => {
     if (files.length === 0) return;
