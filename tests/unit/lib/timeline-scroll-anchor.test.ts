@@ -87,7 +87,7 @@ describe('timeline scroll anchoring', () => {
       dataset: { paneId: 'pane-one' },
       querySelector: () => remountedRoot,
     } as unknown as HTMLElement;
-    const oldRoot = {
+    const oldRootState = {
       isConnected: true,
       clientWidth: 800,
       clientHeight: 300,
@@ -99,7 +99,8 @@ describe('timeline scroll anchoring', () => {
         : { dataset: { paneId: 'pane-one' } },
       getBoundingClientRect: () => ({ top: 100, bottom: 400 }),
       querySelectorAll: () => [],
-    } as unknown as HTMLElement;
+    };
+    const oldRoot = oldRootState as unknown as HTMLElement;
 
     Object.defineProperty(globalThis, 'document', {
       configurable: true,
@@ -120,7 +121,7 @@ describe('timeline scroll anchoring', () => {
     try {
       const snapshot = captureTimelineScroll(oldRoot);
       expect(snapshot).not.toBeNull();
-      oldRoot.isConnected = false;
+      oldRootState.isConnected = false;
       const cleanup = restoreTimelineScrollAfterLayout(snapshot!, { fallbackToBottom: true });
       const startedAt = performance.now();
 
