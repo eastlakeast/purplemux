@@ -26,7 +26,7 @@ const PromptHistoryRail = ({ entries, onNavigate }: IPromptHistoryRailProps) => 
 
   return (
     <nav
-      className="absolute inset-y-4 left-1.5 z-20 hidden w-7 flex-col overflow-y-auto [scrollbar-width:none] sm:flex [&::-webkit-scrollbar]:hidden"
+      className="absolute inset-y-4 right-1.5 z-20 hidden w-7 flex-col overflow-y-auto [scrollbar-width:none] sm:flex [&::-webkit-scrollbar]:hidden"
       aria-label={t('promptHistory')}
     >
       <TooltipProvider delay={0}>
@@ -37,7 +37,7 @@ const PromptHistoryRail = ({ entries, onNavigate }: IPromptHistoryRailProps) => 
                 render={(
                   <button
                     type="button"
-                    className="group flex h-5 w-7 shrink-0 items-center justify-start rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-indicator"
+                    className="group flex h-5 w-7 shrink-0 items-center justify-end rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-indicator"
                     onClick={() => {
                       setActiveId(item.entryId);
                       onNavigate(item.entryId);
@@ -55,7 +55,7 @@ const PromptHistoryRail = ({ entries, onNavigate }: IPromptHistoryRailProps) => 
                 )}
               />
               <TooltipContent
-                side="right"
+                side="left"
                 sideOffset={8}
                 align="center"
                 showArrow={false}

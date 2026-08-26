@@ -923,7 +923,7 @@ const TimelineView = ({
       <TimelineSelectionCopy scrollRef={scrollRef} />
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto py-2 transition-opacity sm:pl-8"
+        className="flex-1 overflow-y-auto py-2 transition-opacity sm:pr-8"
         style={{
           opacity: skipAnimation ? 0 : 1,
           transitionDuration: '300ms',
