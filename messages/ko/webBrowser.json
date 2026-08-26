@@ -15,5 +15,9 @@
   "zoomIn": "확대",
   "zoomOut": "축소",
   "actualSize": "원본 크기",
-  "fileLoadError": "이 파일을 열 수 없습니다"
+  "fileLoadError": "이 파일을 열 수 없습니다",
+  "searchPlaceholder": "검색...",
+  "searchPrev": "이전",
+  "searchNext": "다음",
+  "searchClose": "검색 닫기"
 }

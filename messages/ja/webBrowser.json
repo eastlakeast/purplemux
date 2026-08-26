@@ -15,5 +15,9 @@
   "zoomIn": "拡大",
   "zoomOut": "縮小",
   "actualSize": "原寸大",
-  "fileLoadError": "このファイルを開けません"
+  "fileLoadError": "このファイルを開けません",
+  "searchPlaceholder": "検索...",
+  "searchPrev": "前へ",
+  "searchNext": "次へ",
+  "searchClose": "検索を閉じる"
 }

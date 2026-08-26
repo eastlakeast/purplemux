@@ -15,5 +15,9 @@
   "zoomIn": "放大",
   "zoomOut": "缩小",
   "actualSize": "实际大小",
-  "fileLoadError": "无法打开此文件"
+  "fileLoadError": "无法打开此文件",
+  "searchPlaceholder": "搜索...",
+  "searchPrev": "上一个",
+  "searchNext": "下一个",
+  "searchClose": "关闭搜索"
 }

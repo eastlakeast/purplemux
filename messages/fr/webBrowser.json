@@ -15,5 +15,9 @@
   "zoomIn": "Agrandir",
   "zoomOut": "Réduire",
   "actualSize": "Taille réelle",
-  "fileLoadError": "Impossible d’ouvrir ce fichier"
+  "fileLoadError": "Impossible d’ouvrir ce fichier",
+  "searchPlaceholder": "Rechercher...",
+  "searchPrev": "Précédent",
+  "searchNext": "Suivant",
+  "searchClose": "Fermer la recherche"
 }

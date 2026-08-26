@@ -15,5 +15,9 @@
   "zoomIn": "Yakınlaştır",
   "zoomOut": "Uzaklaştır",
   "actualSize": "Gerçek boyut",
-  "fileLoadError": "Bu dosya açılamıyor"
+  "fileLoadError": "Bu dosya açılamıyor",
+  "searchPlaceholder": "Ara...",
+  "searchPrev": "Önceki",
+  "searchNext": "Sonraki",
+  "searchClose": "Aramayı kapat"
 }
