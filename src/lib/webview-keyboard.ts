@@ -9,6 +9,8 @@ export interface IWebviewKeyboardInput {
   meta: boolean;
 }
 
+const WEBVIEW_FIND_SHORTCUT_CODES = ['meta+KeyF', 'ctrl+KeyF'] as const;
+
 export const normalizeWebviewKeyboardInput = (input: IWebviewKeyboardInput): string => {
   const parts: string[] = [];
   if (input.meta) parts.push('meta');
@@ -18,6 +20,15 @@ export const normalizeWebviewKeyboardInput = (input: IWebviewKeyboardInput): str
   parts.push(input.code);
   return parts.join('+');
 };
+
+export const includeWebviewFindShortcuts = (shortcutCodes: readonly string[]): readonly string[] =>
+  Array.from(new Set([...shortcutCodes, ...WEBVIEW_FIND_SHORTCUT_CODES])).sort();
+
+export const isWebviewFindShortcut = (input: IWebviewKeyboardInput): boolean =>
+  input.code === 'KeyF'
+  && !input.alt
+  && !input.shift
+  && input.meta !== input.control;
 
 export const toKeyboardEventInit = (input: IWebviewKeyboardInput): KeyboardEventInit => ({
   key: input.key,
@@ -30,4 +41,3 @@ export const toKeyboardEventInit = (input: IWebviewKeyboardInput): KeyboardEvent
   bubbles: true,
   cancelable: true,
 });
-

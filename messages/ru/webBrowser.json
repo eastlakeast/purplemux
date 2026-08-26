@@ -15,5 +15,9 @@
   "zoomIn": "Увеличить",
   "zoomOut": "Уменьшить",
   "actualSize": "Фактический размер",
-  "fileLoadError": "Не удалось открыть этот файл"
+  "fileLoadError": "Не удалось открыть этот файл",
+  "searchPlaceholder": "Поиск...",
+  "searchPrev": "Назад",
+  "searchNext": "Далее",
+  "searchClose": "Закрыть поиск"
 }

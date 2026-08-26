@@ -15,5 +15,9 @@
   "zoomIn": "Acercar",
   "zoomOut": "Alejar",
   "actualSize": "Tamaño real",
-  "fileLoadError": "No se puede abrir este archivo"
+  "fileLoadError": "No se puede abrir este archivo",
+  "searchPlaceholder": "Buscar...",
+  "searchPrev": "Anterior",
+  "searchNext": "Siguiente",
+  "searchClose": "Cerrar búsqueda"
 }

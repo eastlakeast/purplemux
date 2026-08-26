@@ -4,11 +4,27 @@ import { ArrowLeft, ArrowRight, RotateCw, Globe, Smartphone, Monitor, RotateCcw,
 import { cn } from '@/lib/utils';
 import isElectron from '@/hooks/use-is-electron';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import FindBar from '@/components/ui/find-bar';
 import { localFilePathFromHref } from '@/lib/local-file-links';
 import { getLocalFileKind } from '@/lib/local-file-viewer';
 import { useLayoutStore } from '@/hooks/use-layout';
 import { getAppShortcutCodes, subscribeKeybindings } from '@/lib/keyboard-shortcuts';
-import { toKeyboardEventInit, type IWebviewKeyboardInput } from '@/lib/webview-keyboard';
+import {
+  includeWebviewFindShortcuts,
+  isWebviewFindShortcut,
+  toKeyboardEventInit,
+  type IWebviewKeyboardInput,
+} from '@/lib/webview-keyboard';
+
+interface IWebviewFindResult {
+  requestId: number;
+  activeMatchOrdinal: number;
+  matches: number;
+}
+
+interface IWebviewFoundInPageEvent extends Event {
+  result: IWebviewFindResult;
+}
 
 interface IElectronWebview extends HTMLElement {
   loadURL(url: string): Promise<void>;
@@ -20,6 +36,8 @@ interface IElectronWebview extends HTMLElement {
   canGoForward(): boolean;
   setUserAgent(userAgent: string): void;
   getWebContentsId(): number;
+  findInPage(text: string, options?: { forward?: boolean; findNext?: boolean; matchCase?: boolean }): number;
+  stopFindInPage(action: 'clearSelection' | 'keepSelection' | 'activateSelection'): void;
 }
 
 interface IDeviceEmulationConfig {
@@ -153,10 +171,18 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
   const [devicePopoverOpen, setDevicePopoverOpen] = useState(false);
   const [zoomPopoverOpen, setZoomPopoverOpen] = useState(false);
   const [stageSize, setStageSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMatchCount, setSearchMatchCount] = useState(0);
+  const [searchMatchIndex, setSearchMatchIndex] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const webviewRef = useRef<IElectronWebview | null>(null);
   const webviewContainerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const activeSearchRequestIdRef = useRef<number | null>(null);
+  const searchOpenRef = useRef(searchOpen);
+  const searchQueryRef = useRef(searchQuery);
   const onUrlChangeRef = useRef(onUrlChange);
   useEffect(() => { onUrlChangeRef.current = onUrlChange; });
   const initialUrlRef = useRef(initialUrl);
@@ -165,6 +191,10 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
     subscribeKeybindings,
     getAppShortcutCodes,
     getAppShortcutCodes,
+  );
+  const browserShortcutCodes = useMemo(
+    () => includeWebviewFindShortcuts(shortcutCodes),
+    [shortcutCodes],
   );
 
   const selectedDevice = useMemo(
@@ -191,6 +221,78 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
   }, [stageSize, deviceSize]);
 
   const effectiveScale = zoom === 'fit' ? fitScale : zoom;
+
+  const runBrowserSearch = useCallback((
+    query: string,
+    options: { forward: boolean; findNext: boolean },
+  ) => {
+    const wv = webviewRef.current;
+    if (!wv || !query) return;
+    activeSearchRequestIdRef.current = wv.findInPage(query, options);
+  }, []);
+
+  const stopBrowserSearch = useCallback(() => {
+    activeSearchRequestIdRef.current = null;
+    webviewRef.current?.stopFindInPage('clearSelection');
+  }, []);
+
+  const clearBrowserSearch = useCallback(() => {
+    stopBrowserSearch();
+    setSearchMatchCount(0);
+    setSearchMatchIndex(0);
+  }, [stopBrowserSearch]);
+
+  const openSearch = useCallback(() => {
+    if (!isElectron || !url) return;
+    searchOpenRef.current = true;
+    setSearchOpen(true);
+    requestAnimationFrame(() => searchInputRef.current?.select());
+  }, [url]);
+
+  const closeSearch = useCallback(() => {
+    searchOpenRef.current = false;
+    searchQueryRef.current = '';
+    setSearchOpen(false);
+    setSearchQuery('');
+    clearBrowserSearch();
+    requestAnimationFrame(() => webviewRef.current?.focus());
+  }, [clearBrowserSearch]);
+
+  const updateSearchQuery = useCallback((query: string) => {
+    searchQueryRef.current = query;
+    setSearchQuery(query);
+    setSearchMatchCount(0);
+    setSearchMatchIndex(0);
+  }, []);
+
+  const nextSearchMatch = useCallback(() => {
+    const query = searchQueryRef.current.trim();
+    if (!query) return;
+    runBrowserSearch(query, { forward: true, findNext: false });
+  }, [runBrowserSearch]);
+
+  const previousSearchMatch = useCallback(() => {
+    const query = searchQueryRef.current.trim();
+    if (!query) return;
+    runBrowserSearch(query, { forward: false, findNext: false });
+  }, [runBrowserSearch]);
+
+  const handleFoundInPage = useCallback((event: Event) => {
+    const result = (event as IWebviewFoundInPageEvent).result;
+    if (result.requestId !== activeSearchRequestIdRef.current) return;
+    setSearchMatchCount(result.matches);
+    setSearchMatchIndex(result.matches > 0 ? Math.max(0, result.activeMatchOrdinal - 1) : 0);
+  }, []);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const query = searchQuery.trim();
+    if (!query) {
+      stopBrowserSearch();
+      return;
+    }
+    runBrowserSearch(query, { forward: true, findNext: true });
+  }, [runBrowserSearch, searchOpen, searchQuery, stopBrowserSearch]);
 
   useEffect(() => {
     if (initialUrl && addressValue && !configuredLocalFilePath) {
@@ -239,24 +341,31 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
     };
 
     const handleDomReady = () => {
-      if (!tabId) return;
-      try {
-        const wcId = wv!.getWebContentsId();
-        getBridgeAPI()?.registerBrowserTab?.(tabId, wcId, shortcutCodes);
-      } catch { /* webview not yet mounted; retry handled by subsequent dom-ready */ }
+      if (tabId) {
+        try {
+          const wcId = wv!.getWebContentsId();
+          getBridgeAPI()?.registerBrowserTab?.(tabId, wcId, browserShortcutCodes);
+        } catch { /* webview not yet mounted; retry handled by subsequent dom-ready */ }
+      }
+      const query = searchQueryRef.current.trim();
+      if (searchOpenRef.current && query) {
+        runBrowserSearch(query, { forward: true, findNext: true });
+      }
     };
 
     wv.addEventListener('did-navigate', handleNavigate);
     wv.addEventListener('did-navigate-in-page', handleNavigateInPage);
     wv.addEventListener('dom-ready', handleDomReady);
+    wv.addEventListener('found-in-page', handleFoundInPage);
     handleDomReady();
 
     return () => {
       wv!.removeEventListener('did-navigate', handleNavigate);
       wv!.removeEventListener('did-navigate-in-page', handleNavigateInPage);
       wv!.removeEventListener('dom-ready', handleDomReady);
+      wv!.removeEventListener('found-in-page', handleFoundInPage);
     };
-  }, [url, tabId, shortcutCodes]);
+  }, [browserShortcutCodes, handleFoundInPage, runBrowserSearch, tabId, url]);
 
   useEffect(() => {
     if (!isElectron || !tabId) return;
@@ -264,17 +373,23 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
     if (!api?.onBrowserShortcut) return;
     return api.onBrowserShortcut((sourceTabId, input) => {
       if (sourceTabId !== tabId) return;
+      if (isWebviewFindShortcut(input)) {
+        if (input.type === 'keyDown') openSearch();
+        return;
+      }
       if (input.type === 'keyDown') useLayoutStore.getState().focusTab(tabId);
       requestAnimationFrame(() => {
         const eventType = input.type === 'keyUp' ? 'keyup' : 'keydown';
         document.dispatchEvent(new KeyboardEvent(eventType, toKeyboardEventInit(input)));
       });
     });
-  }, [tabId]);
+  }, [openSearch, tabId]);
 
   useEffect(() => {
     if (!isElectron || !tabId) return;
     return () => {
+      activeSearchRequestIdRef.current = null;
+      webviewRef.current?.stopFindInPage('clearSelection');
       getBridgeAPI()?.unregisterBrowserTab?.(tabId);
     };
   }, [tabId]);
@@ -435,7 +550,19 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
   const showEmulatorToolbar = isElectron && effectiveMobileMode;
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div
+      className="flex h-full flex-col bg-background"
+      onKeyDownCapture={(event) => {
+        const isFindShortcut = (event.metaKey || event.ctrlKey)
+          && !event.altKey
+          && !event.shiftKey
+          && (event.code === 'KeyF' || event.key.toLocaleLowerCase() === 'f');
+        if (!isElectron || !url || !isFindShortcut) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openSearch();
+      }}
+    >
       <div
         className="relative flex h-12 shrink-0 items-center gap-1 border-b border-border px-2"
         {...(isElectron ? { style: { WebkitAppRegion: 'drag' } as React.CSSProperties } : {})}
@@ -596,6 +723,24 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
               effectiveMobileMode ? 'flex items-center justify-center bg-muted/20 p-4' : '',
             )}
           >
+            {searchOpen && (
+              <FindBar
+                query={searchQuery}
+                onQueryChange={updateSearchQuery}
+                matchCount={searchMatchCount}
+                currentIndex={searchMatchIndex}
+                onNext={nextSearchMatch}
+                onPrevious={previousSearchMatch}
+                onClose={closeSearch}
+                inputRef={searchInputRef}
+                labels={{
+                  placeholder: t('searchPlaceholder'),
+                  previous: t('searchPrev'),
+                  next: t('searchNext'),
+                  close: t('searchClose'),
+                }}
+              />
+            )}
             <div
               ref={webviewContainerRef}
               className={cn(
