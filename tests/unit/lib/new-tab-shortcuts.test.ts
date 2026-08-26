@@ -5,6 +5,7 @@ const shortcuts = ['c', 'x', 's', 't', 'w', 'd'];
 
 const event = (key: string, overrides = {}) => ({
   key,
+  code: `Key${key.toUpperCase()}`,
   metaKey: false,
   ctrlKey: false,
   altKey: false,
@@ -29,7 +30,14 @@ describe('new tab shortcuts', () => {
     expect(findNewTabShortcutIndex(shortcuts, event('c', { metaKey: true }))).toBe(-1);
     expect(findNewTabShortcutIndex(shortcuts, event('c', { ctrlKey: true }))).toBe(-1);
     expect(findNewTabShortcutIndex(shortcuts, event('c', { altKey: true }))).toBe(-1);
-    expect(findNewTabShortcutIndex(shortcuts, event('c', { isComposing: true }))).toBe(-1);
+    expect(findNewTabShortcutIndex(shortcuts, event('c', { code: '', isComposing: true }))).toBe(-1);
     expect(findNewTabShortcutIndex(shortcuts, event('c', { repeat: true }))).toBe(-1);
+  });
+
+  it('uses the physical key while an IME is composing', () => {
+    expect(findNewTabShortcutIndex(shortcuts, event('Process', {
+      code: 'KeyD',
+      isComposing: true,
+    }))).toBe(5);
   });
 });
