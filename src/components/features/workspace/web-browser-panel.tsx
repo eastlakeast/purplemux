@@ -15,6 +15,7 @@ import {
   toKeyboardEventInit,
   type IWebviewKeyboardInput,
 } from '@/lib/webview-keyboard';
+import { findInReadyWebview, stopFindInReadyWebview } from '@/lib/webview-find';
 
 interface IWebviewFindResult {
   requestId: number;
@@ -178,6 +179,7 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const webviewRef = useRef<IElectronWebview | null>(null);
   const webviewContainerRef = useRef<HTMLDivElement>(null);
+  const webviewReadyRef = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const activeSearchRequestIdRef = useRef<number | null>(null);
@@ -226,14 +228,18 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
     query: string,
     options: { forward: boolean; findNext: boolean },
   ) => {
-    const wv = webviewRef.current;
-    if (!wv || !query) return;
-    activeSearchRequestIdRef.current = wv.findInPage(query, options);
+    const requestId = findInReadyWebview(
+      webviewRef.current,
+      webviewReadyRef.current,
+      query,
+      options,
+    );
+    if (requestId !== null) activeSearchRequestIdRef.current = requestId;
   }, []);
 
   const stopBrowserSearch = useCallback(() => {
     activeSearchRequestIdRef.current = null;
-    webviewRef.current?.stopFindInPage('clearSelection');
+    stopFindInReadyWebview(webviewRef.current, webviewReadyRef.current);
   }, []);
 
   const clearBrowserSearch = useCallback(() => {
@@ -321,6 +327,7 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
     }
 
     webviewRef.current = wv;
+    webviewReadyRef.current = false;
 
     const handleNavigate = (e: Event) => {
       const detail = e as Event & { url: string };
@@ -341,15 +348,18 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
     };
 
     const handleDomReady = () => {
-      if (tabId) {
-        try {
-          const wcId = wv!.getWebContentsId();
+      try {
+        const wcId = wv!.getWebContentsId();
+        webviewReadyRef.current = true;
+        if (tabId) {
           getBridgeAPI()?.registerBrowserTab?.(tabId, wcId, browserShortcutCodes);
-        } catch { /* webview not yet mounted; retry handled by subsequent dom-ready */ }
-      }
-      const query = searchQueryRef.current.trim();
-      if (searchOpenRef.current && query) {
-        runBrowserSearch(query, { forward: true, findNext: true });
+        }
+        const query = searchQueryRef.current.trim();
+        if (searchOpenRef.current && query) {
+          runBrowserSearch(query, { forward: true, findNext: true });
+        }
+      } catch {
+        webviewReadyRef.current = false;
       }
     };
 
@@ -360,6 +370,7 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
     handleDomReady();
 
     return () => {
+      webviewReadyRef.current = false;
       wv!.removeEventListener('did-navigate', handleNavigate);
       wv!.removeEventListener('did-navigate-in-page', handleNavigateInPage);
       wv!.removeEventListener('dom-ready', handleDomReady);
@@ -389,7 +400,8 @@ const WebBrowserPanel = ({ initialUrl, onUrlChange, tabId }: IWebBrowserPanelPro
     if (!isElectron || !tabId) return;
     return () => {
       activeSearchRequestIdRef.current = null;
-      webviewRef.current?.stopFindInPage('clearSelection');
+      webviewReadyRef.current = false;
+      webviewRef.current = null;
       getBridgeAPI()?.unregisterBrowserTab?.(tabId);
     };
   }, [tabId]);

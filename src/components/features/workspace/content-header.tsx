@@ -21,6 +21,7 @@ import useGitStatusStore, {
   getGitStatusIndicators,
 } from '@/hooks/use-git-status-store';
 import type { TGitStatusIndicatorTone } from '@/hooks/use-git-status-store';
+import { getPanelTmuxSession } from '@/lib/panel-type';
 
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
 const isLocalAccess = typeof window !== 'undefined'
@@ -96,7 +97,7 @@ const ContentHeader = ({
   const fetchGitStatusForTarget = useGitStatusStore((state) => state.fetchForTarget);
 
   const gitCwdKey = activeTabCwd || activeTab?.cwd || activeTab?.sessionName || null;
-  const gitTmuxSession = activeTab?.sessionName ?? null;
+  const gitTmuxSession = getPanelTmuxSession(activeTab?.panelType, activeTab?.sessionName);
   const gitShortcut = `${mod}⇧F`;
   const gitIndicators = getGitStatusIndicators(gitStatus);
   const gitTooltipLabel = `${formatGitStatusSummary(gitPhase, gitBranch, gitStatus, 'Git panel')} (${gitShortcut})`;
