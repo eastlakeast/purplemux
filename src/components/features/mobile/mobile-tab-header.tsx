@@ -35,6 +35,7 @@ import type { TPanelType } from '@/types/terminal';
 import useWorkspaceStore from '@/hooks/use-workspace-store';
 import { isOrchestratorTab } from '@/lib/workspace-team-role';
 import OrchestratorIndicator from '@/components/features/workspace/orchestrator-indicator';
+import { getPanelTmuxSession } from '@/lib/panel-type';
 
 const iconButtonClassName = 'relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground';
 const iconClassName = 'h-4 w-4 shrink-0';
@@ -116,17 +117,18 @@ const MobileTabHeader = ({
   const hasGitInlineStatus = gitIndicators.length > 0 || gitPhase === 'error';
 
   useEffect(() => {
-    const target = { cwdKey, tmuxSession: sessionName };
+    const tmuxSession = getPanelTmuxSession(panelType, sessionName);
+    const target = { cwdKey, tmuxSession };
     resetGitStatusForTarget(target);
     void fetchGitStatusForTarget(target);
 
-    if (!cwdKey || !sessionName) return undefined;
+    if (!cwdKey || !tmuxSession) return undefined;
 
     const timer = window.setInterval(() => {
       void fetchGitStatusForTarget(target);
     }, GIT_STATUS_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [cwdKey, fetchGitStatusForTarget, resetGitStatusForTarget, sessionName]);
+  }, [cwdKey, fetchGitStatusForTarget, panelType, resetGitStatusForTarget, sessionName]);
   const switchable = canSwitchMode(panelType);
   const runtimeAgentPanelType = getAgentPanelTypeFromProvider(tabEntry?.agentProviderId);
   const hasDetectedAgent = !!runtimeAgentPanelType
